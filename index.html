@@ -142,13 +142,32 @@ input:focus,select:focus,textarea:focus{border-color:var(--bi)}
 .sb input{width:100%;padding-left:32px}.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--t2);font-size:15px;pointer-events:none}
 .kwc{font-size:11px;color:var(--ti);background:var(--bgi);padding:2px 8px;border-radius:99px;margin-left:6px}
 .hbanner{background:var(--bgd);border-radius:var(--r1);padding:10px 14px;font-size:13px;color:var(--td);margin-bottom:1rem}
+/* 인증 */
+.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center}
+.auth-box{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:1.5rem;width:92%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.auth-title{font-size:15px;font-weight:500;color:var(--t1);margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--t2);margin-bottom:1rem}
+.auth-tabs{display:flex;gap:4px;margin-bottom:1rem}
+.auth-tab{flex:1;padding:6px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:12px;cursor:pointer;color:var(--t2);font-family:var(--font);text-align:center}
+.auth-tab.on{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}
+.badge-role{font-size:10px;padding:2px 8px;border-radius:99px;display:inline-block}
+.badge-role.admin{background:var(--bgi);color:var(--ti)}
+.badge-role.ma{background:var(--bg2);color:var(--t2)}
+.user-info-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);padding:6px 10px;background:var(--bg2);border-radius:99px}
+.lock-btn{font-size:11px;padding:3px 10px;border:0.5px solid var(--b2);border-radius:99px;background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font)}
+.lock-btn:hover{background:var(--bgd);color:var(--td)}
+.masked{color:var(--b3);font-size:11px;font-style:italic;user-select:none}
 </style>
 </head>
 <body>
+<!-- 앱 시작 -->
 <div class="wrap">
   <div class="ph">
     <div><div class="pt">TM 활동 관리 대시보드</div><div class="ps">동부팀 8명 · 서부팀 9명</div></div>
-    <div id="sync-badge" class="sync-status loading">연결 중...</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div id="auth-bar"></div>
+      <div id="sync-badge" class="sync-status loading">연결 중...</div>
+    </div>
   </div>
   <div class="card">
     <div class="tabs">
@@ -157,12 +176,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--bi)}
       <button class="tb" onclick="showTab('west')">서부팀</button>
       <button class="tb" onclick="showTab('cum')">누적 현황</button>
       <button class="tb" onclick="showTab('tmlog')">TM 내역</button>
+      <button class="tb" onclick="showTab('staff')">인력관리</button>
     </div>
     <div id="tab-all" class="sec active"></div>
     <div id="tab-east" class="sec"></div>
     <div id="tab-west" class="sec"></div>
     <div id="tab-cum" class="sec"></div>
     <div id="tab-tmlog" class="sec"></div>
+    <div id="tab-staff" class="sec"></div>
   </div>
 </div>
 <div class="mov" id="mov" onclick="closeModalBg(event)">
@@ -175,7 +196,162 @@ input:focus,select:focus,textarea:focus{border-color:var(--bi)}
 // ════════════════════════════════════════════
 const SUPABASE_URL = 'https://zndbcmzquoaavsfojhhz.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZGJjbXpxdW9hYXZzZm9qaGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNTE5MzYsImV4cCI6MjA5NTkyNzkzNn0.5lI7H6QR5e-fJGBgQQu4Zwk4G_l3EZ4Dc8wM1cvokGs'
+
+// ★ 관리자 공통 PIN — 원하는 숫자/문자로 변경하세요 ★
+const ADMIN_PIN = '2580'
 // ════════════════════════════════════════════
+
+// ── 권한 시스템 ──
+// - 첫 화면/TM 기록: 누구나 접근 가능
+// - TM 내역 탭: 이름 선택만으로 본인 내역 조회 (MA)
+//              관리자 PIN 입력 시 전체 열람
+// - 인력관리 탭: 관리자 PIN 필요
+
+const ADMIN_NAMES = ['동부팀장','서부팀장','사업부장','사업부지원팀장']
+let CURRENT_USER = null  // null | { name, role:'admin'|'ma' }
+let AUTH_CALLBACK = null
+
+function isAdmin(){ return CURRENT_USER?.role === 'admin' }
+function isMe(ma){ return CURRENT_USER?.name === ma }
+function canViewFull(ma){ return isAdmin() || isMe(ma) }
+function isLoggedIn(){ return CURRENT_USER !== null }
+
+// 인증 모달 열기
+// mode: 'ma' = MA 이름 선택 / 'admin' = 관리자 PIN
+function requireAuth(reason, cb, mode='ma'){
+  AUTH_CALLBACK = cb
+  renderAuthModal(reason, mode)
+}
+
+function renderAuthModal(reason, mode='ma'){
+  const overlay = document.createElement('div')
+  overlay.className = 'auth-overlay'
+  overlay.id = 'auth-overlay'
+  overlay.innerHTML = `
+  <div class="auth-box">
+    <div class="auth-title">🔐 ${mode==='admin'?'관리자 인증':'내 TM 내역 조회'}</div>
+    <div class="auth-sub" style="margin-bottom:1rem">${reason||''}</div>
+
+    ${mode==='ma' ? `
+    <div style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--t2);display:block;margin-bottom:4px">이름 선택</label>
+      <select id="auth-name" style="width:100%;font-size:13px;padding:8px 10px;border:0.5px solid var(--b2);border-radius:var(--r1);background:var(--bg1);color:var(--t1)">
+        <option value="">-- 이름을 선택하세요 --</option>
+        <optgroup label="동부팀">${EAST.map(m=>`<option>${m}</option>`).join('')}</optgroup>
+        <optgroup label="서부팀">${WEST.map(m=>`<option>${m}</option>`).join('')}</optgroup>
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--t2);background:var(--bg2);border-radius:var(--r1);padding:8px 10px;margin-bottom:10px">
+      이름을 선택하면 <strong>본인이 작성한 TM 내역만</strong> 표시됩니다.<br>
+      전체 열람이 필요하면 관리자에게 문의하세요.
+    </div>
+    ` : `
+    <div style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--t2);display:block;margin-bottom:4px">관리자 공통 PIN</label>
+      <input type="password" id="auth-admin-pin" placeholder="PIN 입력"
+        style="width:100%;font-size:14px;padding:9px 12px;border:0.5px solid var(--b2);border-radius:var(--r1);background:var(--bg1);color:var(--t1)"
+        onkeydown="if(event.key==='Enter')doAuthLogin('${mode}')">
+    </div>
+    `}
+
+    <div id="auth-err" style="font-size:12px;color:var(--td);min-height:16px;margin-bottom:10px;text-align:center"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeAuthModal()" style="flex:1;padding:9px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:13px;cursor:pointer;color:var(--t2);font-family:var(--font)">취소</button>
+      <button onclick="doAuthLogin('${mode}')" style="flex:2;padding:9px;background:var(--bgi);color:var(--ti);border:none;border-radius:var(--r1);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font)">${mode==='admin'?'관리자 로그인':'조회하기'}</button>
+    </div>
+  </div>`
+  document.body.appendChild(overlay)
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeAuthModal() })
+}
+
+function switchAuthTab(tab){}  // 더 이상 사용 안 함
+
+function doAuthLogin(mode='ma'){
+  const err = document.getElementById('auth-err')
+  if(mode==='admin'){
+    const pin = document.getElementById('auth-admin-pin')?.value.trim()
+    if(!pin){ err.textContent='PIN을 입력해주세요.'; return }
+    if(pin !== ADMIN_PIN){ err.textContent='PIN이 올바르지 않습니다.'; return }
+    CURRENT_USER = { name:'관리자', role:'admin' }
+    closeAuthModal()
+    updateAuthBar()
+    if(AUTH_CALLBACK){ AUTH_CALLBACK(); AUTH_CALLBACK=null }
+  } else {
+    // MA: 이름 선택만으로 본인 내역 조회
+    const name = document.getElementById('auth-name')?.value
+    if(!name){ err.textContent='이름을 선택해주세요.'; return }
+    CURRENT_USER = { name, role:'ma', team: EAST.includes(name)?'east':'west' }
+    closeAuthModal()
+    updateAuthBar()
+    if(AUTH_CALLBACK){ AUTH_CALLBACK(); AUTH_CALLBACK=null }
+  }
+}
+
+async function doAdminLogin(){ doAuthLogin('admin') }
+
+function closeAuthModal(){
+  const el = document.getElementById('auth-overlay')
+  if(el) el.remove()
+}
+
+function updateAuthBar(){
+  const bar = document.getElementById('auth-bar')
+  if(!bar) return
+  if(!CURRENT_USER){
+    bar.innerHTML=`<button onclick="requireAuth('이름을 선택하면 내 TM 내역을 볼 수 있습니다.',()=>showTab('tmlog'),'ma')"
+      style="font-size:11px;padding:4px 12px;border:0.5px solid var(--b2);border-radius:99px;background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font)">
+      TM 내역 조회
+    </button>`
+    return
+  }
+  const isAdm = CURRENT_USER.role==='admin'
+  bar.innerHTML=`<div class="user-info-bar">
+    <span style="font-weight:500;color:var(--t1)">${CURRENT_USER.name}</span>
+    <span class="badge-role ${isAdm?'admin':'ma'}">${isAdm?'전체열람':'내TM'}</span>
+    <button class="lock-btn" onclick="doLogout()">✕ 나가기</button>
+  </div>`
+}
+
+function doLogout(){
+  CURRENT_USER = null
+  AUTH_CALLBACK = null
+  updateAuthBar()
+  reRenderActive()
+}
+
+function doAdminLogin(){ doAuthLogin() }
+function onLoginSuccess(){}
+function switchLoginMode(){}
+
+async function addNewMember(){
+  const name   = document.getElementById('new-ma-name')?.value.trim()
+  const team   = document.getElementById('new-ma-team')?.value
+  const role   = document.getElementById('new-ma-role')?.value
+  const pin    = document.getElementById('new-ma-pin')?.value.trim()
+  const pin2   = document.getElementById('new-ma-pin2')?.value.trim()
+  const msg    = document.getElementById('new-ma-msg')
+  if(!name){ msg.style.color='var(--td)'; msg.textContent='이름을 입력해주세요.'; return }
+  if(!pin || pin.length<4){ msg.style.color='var(--td)'; msg.textContent='PIN은 4자리 이상이어야 합니다.'; return }
+  if(pin!==pin2){ msg.style.color='var(--td)'; msg.textContent='PIN이 일치하지 않습니다.'; return }
+  msg.style.color='var(--t2)'; msg.textContent='등록 중...'
+  try{
+    const pin_hash = hashPin(name, pin)
+    const teamVal = role==='admin' ? null : team
+    const { data:existing } = await sb.from('tm_users').select('name').eq('name',name).maybeSingle()
+    if(existing){ msg.style.color='var(--td)'; msg.textContent=`"${name}"은 이미 등록된 사용자입니다. PIN 재설정을 이용하세요.`; return }
+    await sb.from('tm_users').insert({name, pin_hash, role, team:teamVal})
+    msg.style.color='var(--ts)'
+    msg.textContent=`✓ ${name} (${role==='admin'?'관리자':team==='east'?'동부팀':'서부팀'}) 등록 완료! 달력/현황 반영은 코드의 EAST/WEST 배열에 이름을 추가해주세요.`
+    document.getElementById('new-ma-name').value=''
+    document.getElementById('new-ma-pin').value=''
+    document.getElementById('new-ma-pin2').value=''
+  }catch(e){ msg.style.color='var(--td)'; msg.textContent='등록 실패: '+e.message }
+}
+
+function savePIN(){
+  // PIN은 HTML 파일의 ADMIN_PIN 변수로 직접 설정합니다.
+  alert('PIN 변경은 HTML 파일의 ADMIN_PIN 값을 수정해주세요.')
+}
 
 // Supabase 클라이언트 (초기화는 페이지 로드 완료 후)
 let sb = null
@@ -183,6 +359,15 @@ let sb = null
 const EAST=['백현석','심재천','이동성','정승상','박재환','손혜령','권성은','김다진']
 const WEST=['임현묵','최용','조인호','박민국','강탄','우수민','조용준','장길평','박찬혜']
 const ALL_MA=EAST.map(m=>({m,team:'east'})).concat(WEST.map(m=>({m,team:'west'})))
+
+// MA 상태 관리 (재직중/부서이동/퇴직)
+// 상태: 'active'(재직중) | 'transferred'(부서이동) | 'resigned'(퇴직)
+let MA_STATUS = {} // { '조용준': { status:'transferred', date:'2025-06-30', note:'영업2팀 이동' } }
+
+function getMaStatus(ma){ return MA_STATUS[ma]?.status || 'active' }
+function isActiveMa(ma){ return getMaStatus(ma) === 'active' }
+function loadMaStatus(){ try{ const s=localStorage.getItem('ma_status_v1'); if(s) MA_STATUS=JSON.parse(s); }catch(e){} }
+function saveMaStatus(){ try{ localStorage.setItem('ma_status_v1', JSON.stringify(MA_STATUS)); }catch(e){} }
 
 const KR_HOLIDAYS=new Set([
   // 2025
@@ -343,8 +528,8 @@ function mo(d){return d.slice(0,7)}
 
 // ── 캐시 (매 페이지에서 DB 재조회 최소화) ──
 let CACHE = { logs: [], quotas: [], db: [], loaded: false }
-let CUR_DATE = td()
-let CAL_MONTH = { all: mo(td()), east: mo(td()), west: mo(td()) }
+let CUR_DATE = '2025-06-04'
+let CAL_MONTH = { all: '2025-06', east: '2025-06', west: '2025-06' }
 function fmtD(d){const dt=new Date(d+'T00:00:00');return `${dt.getMonth()+1}월 ${dt.getDate()}일 (${['일','월','화','수','목','금','토'][dt.getDay()]})`}
 function fmtM(ym){const[y,m]=ym.split('-');return `${y}년 ${parseInt(m)}월`}
 
@@ -394,14 +579,35 @@ function tdAch(team,date){return teamMembers(team).filter(m=>logs4(m,date).lengt
 function tdTot(team){return teamMembers(team).length}
 
 function showTab(t){
-  document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog'][i]===t))
+  document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff'][i]===t))
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
   document.getElementById('tab-'+t).classList.add('active')
   if(t==='all')renderAll()
   if(t==='east')renderTeam('east')
   if(t==='west')renderTeam('west')
   if(t==='cum')renderCum()
-  if(t==='tmlog')renderTMLog()
+  if(t==='tmlog'){
+    if(!isLoggedIn()){
+      // 미인증 → MA 이름 선택 모달
+      requireAuth('이름을 선택하면 내가 작성한 TM 내역을 볼 수 있습니다.', ()=>showTab('tmlog'), 'ma')
+      document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff'][i]==='all'))
+      document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+      document.getElementById('tab-all').classList.add('active')
+      return
+    }
+    renderTMLog()
+  }
+  if(t==='staff'){
+    if(!isAdmin()){
+      // 미인증 또는 MA → 관리자 PIN 모달
+      requireAuth('인력관리는 관리자 PIN이 필요합니다.', ()=>showTab('staff'), 'admin')
+      document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff'][i]==='all'))
+      document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+      document.getElementById('tab-all').classList.add('active')
+      return
+    }
+    renderStaff()
+  }
 }
 
 // ── 달력 HTML ──
@@ -411,7 +617,7 @@ function calHtml(team,selDate){
   const dim=new Date(yr,mo2,0).getDate(),today=td()
   // 1일의 요일 (0=일 ~ 6=토) → 월 기준 offset (월=0)
   const firstDow=new Date(yr,mo2-1,1).getDay() // 0=일,1=월,...,6=토
-  const offsetMon=firstDow===0?6:firstDow-1    // 월요일 기준 앞 빈칸 수
+  const offsetMon=firstDow    // 일요일 기준 앞 빈칸 수 (일=0,월=1,...,토=6)
   const workdayCount=[...Array(dim)].filter((_,i)=>{
     const ds=`${yr}-${String(mo2).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`
     return isWorkday(ds)
@@ -420,9 +626,9 @@ function calHtml(team,selDate){
     <button class="db" onclick="chgCalMo('${team}',-1)">&#8249;</button>
     <span class="ct">${fmtM(ym)} <span style="font-size:11px;color:var(--t2);font-weight:400">평일 ${workdayCount}일</span></span>
     <button class="db" onclick="chgCalMo('${team}',1)">&#8250;</button>
-  </div><div class="cg7">`;
-  // 요일 헤더 월~일
-  ['월','화','수','목','금','토','일'].forEach(d=>{
+  </div><div class="cg7">`
+  // 요일 헤더 일~토 (일요일 시작)
+  ;['일','월','화','수','목','금','토'].forEach(d=>{
     const isSun=d==='일',isSat=d==='토'
     h+=`<div class="cdw" style="${isSun?'color:#A32D2D':isSat?'color:#185FA5':''}">${d}</div>`
   })
@@ -481,7 +687,8 @@ function renderAll(){
     const tms=teamMembers(team);let tQ2=0,tD=0,tF=0
     tms.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length;tQ2+=q;tD+=Math.min(c,q);if(c>=q)tF++})
     h+=`<div class="pn" style="margin-bottom:0"><div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div><div style="font-size:12px;color:var(--t2);margin-bottom:8px">할당 ${tQ2}건 · 달성 ${tD}건 · ${tQ2>0?Math.round(tD/tQ2*100):0}%</div>`
-    tms.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length,pct=Math.min(c/q,1);const bc=c>=q?'#1D9E75':c>0?'#BA7517':'var(--b3)';h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="font-size:12px;width:52px;flex-shrink:0">${m}</span><div class="pw" style="flex:1"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div><span style="font-size:11px;color:var(--t2);width:30px;text-align:right">${c}/${q}</span></div>`})
+    tms.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length,pct=Math.min(c/q,1);const bc=c>=q?'#1D9E75':c>0?'#BA7517':'var(--b3)';const ms2=isMe(m)?';font-weight:600;color:var(--ti)':''
+        h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="font-size:12px;width:54px;flex-shrink:0${ms2}">${m}${isMe(m)?' ◀':''}</span><div class="pw" style="flex:1"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div><span style="font-size:11px;color:var(--t2);width:30px;text-align:right">${c}/${q}</span></div>`})
     h+=`</div>`
   })
   h+=`</div>`+dbPanelHtml()
@@ -536,10 +743,13 @@ function hlText(t,kw){if(!kw||!t)return t||'';const e=kw.replace(/[.*+?^${}()|[\
 function renderTMLog(){
   const all=getAllRows()
   const kw=(document.getElementById('tl-kw')?.value||'').trim()
+  const viewLabel = isAdmin()
+    ? `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bgi);color:var(--ti);margin-left:6px">전체 열람 (관리자)</span>`
+    : `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg2);color:var(--t2);margin-left:6px">내 TM만 표시</span>`
   let h=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
-    <span class="stl" style="margin-bottom:0">전체 TM 내역 <span style="font-size:12px;color:var(--t2);font-weight:400">총 ${all.length}건</span></span>
-    <div style="display:flex;gap:6px"><button class="btn s" onclick="exportCSV()"><i class="ti ti-file-text" style="font-size:13px"></i> CSV</button><button class="btn s p" onclick="exportExcel()"><i class="ti ti-table" style="font-size:13px"></i> Excel</button></div>
-  </div>
+    <span class="stl" style="margin-bottom:0">TM 내역 ${viewLabel} <span style="font-size:12px;color:var(--t2);font-weight:400">총 ${all.length}건</span></span>
+    <div style="display:flex;gap:6px">${isAdmin()?`<button class="btn s" onclick="exportCSV()"><i class="ti ti-file-text" style="font-size:13px"></i> CSV</button><button class="btn s p" onclick="exportExcel()"><i class="ti ti-table" style="font-size:13px"></i> Excel</button>`:''}</div>
+  </div>`
   <div class="fr"><div class="sb"><i class="ti ti-search si"></i><input type="text" id="tl-kw" placeholder="전체 내용 통합 검색" value="${kw}" oninput="renderTMLog()"></div></div>
   <div class="fr">
     <select id="tl-team" onchange="renderTMLog()"><option value="">전체 팀</option><option value="동부팀">동부팀</option><option value="서부팀">서부팀</option></select>
@@ -551,6 +761,8 @@ function renderTMLog(){
   </div>`
   const tf=document.getElementById('tl-team')?.value||'',mf=document.getElementById('tl-ma')?.value||'',cf=document.getElementById('tl-call')?.value||'',crf=document.getElementById('tl-cr')?.value||'',ff=document.getElementById('tl-from')?.value||'',tf2=document.getElementById('tl-to')?.value||'',kl=kw.toLowerCase()
   const fil=all.filter(r=>{
+    // 관리자: 전체 / MA: 본인 것만
+    if(!isAdmin() && !isMe(r.ma_name)) return false
     if(tf&&r.team!==tf)return false;if(mf&&r.ma_name!==mf)return false;if(cf&&r.call_result!==cf)return false;if(crf&&r.consult_result!==crf)return false;if(ff&&r.log_date<ff)return false;if(tf2&&r.log_date>tf2)return false
     if(kl){const hay=[r.company,r.current_partner,r.fee_rate,r.ceo_contact,r.consult_detail,r.action_plan,r.ma_name].join(' ').toLowerCase();if(!hay.includes(kl))return false}
     return true
@@ -563,7 +775,19 @@ function renderTMLog(){
     fil.forEach(r=>{
       const hf=kw?(v)=>hlText(v,kw):(v)=>v||'—'
       const crCls=r.consult_result==='종결'?'pill 종결':'pill 추가상담',crL=r.consult_result==='추가상담'?'추가상담':r.consult_result||'—'
-      h+=`<tr><td style="color:var(--t2);white-space:nowrap">${r.log_date}</td><td>${r.team}</td><td style="font-weight:500">${hf(r.ma_name)}</td><td style="font-weight:500">${hf(r.company)}</td><td>${hf(r.current_partner)||'—'}</td><td>${hf(r.fee_rate)||'—'}</td><td style="color:var(--t2)">${r.ceo_contact||'—'}</td><td><span class="pill ${r.call_result}">${r.call_result||'—'}</span></td><td style="max-width:180px;white-space:pre-wrap;word-break:break-all;line-height:1.4">${hf(r.consult_detail)||'—'}</td><td>${r.consult_result?`<span class="${crCls}">${crL}</span>`:'—'}</td><td style="color:var(--ti);white-space:pre-wrap;word-break:break-all">${hf(r.action_plan)||'—'}</td></tr>`
+      h+=`<tr>
+        <td style="color:var(--t2);white-space:nowrap">${r.log_date}</td>
+        <td>${r.team}</td>
+        <td style="font-weight:500">${hf(r.ma_name)}</td>
+        <td style="font-weight:500">${hf(r.company)}</td>
+        <td>${hf(r.current_partner)||'—'}</td>
+        <td>${hf(r.fee_rate)||'—'}</td>
+        <td style="color:var(--t2)">${r.ceo_contact||'—'}</td>
+        <td><span class="pill ${r.call_result}">${r.call_result||'—'}</span></td>
+        <td style="max-width:180px;white-space:pre-wrap;word-break:break-all;line-height:1.4">${hf(r.consult_detail)||'—'}</td>
+        <td>${r.consult_result?`<span class="${crCls}">${crL}</span>`:'—'}</td>
+        <td style="color:var(--ti);white-space:pre-wrap;word-break:break-all">${hf(r.action_plan)||'—'}</td>
+      </tr>`
     })
     h+=`</tbody></table></div>`
   }
@@ -597,28 +821,40 @@ function exportExcel(){
 function dbPanelHtml(){
   const assigned=CACHE.db.filter(r=>r.assign1||r.assign2),unassigned=CACHE.db.filter(r=>!r.assign1&&!r.assign2),r2ready=CACHE.db.filter(r=>r.r2_enabled&&r.assign1&&!r.assign2)
   let h=`<div class="pn"><div class="pnt"><i class="ti ti-database" style="font-size:16px"></i>DB 관리 & 자동 할당<div style="margin-left:auto;display:flex;gap:6px"><button class="btn s" onclick="doAutoAssign()"><i class="ti ti-wand" style="font-size:13px"></i> 자동 할당</button><button class="btn s dng" onclick="resetDB()">초기화</button></div></div>
-  <div style="font-size:12px;color:var(--t2);margin-bottom:.75rem">전체 ${CACHE.db.length}건 · 할당완료 ${assigned.length}건 · 미할당 ${unassigned.length}건 · 2차대기 ${r2ready.length}건</div>
-  <div class="ua" onclick="document.getElementById('csv-input').click()"><i class="ti ti-upload" style="font-size:20px;color:var(--t2);display:block;margin:0 auto 5px"></i><div style="font-size:13px;color:var(--t2)">CSV 파일 업로드</div><div style="font-size:11px;color:var(--t2);margin-top:2px">컬럼: 본사명, 가맹점수, 권역(동부/서부)</div></div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:.75rem">전체 ${CACHE.db.length}건 · 대상 ${CACHE.db.filter(r=>r.is_target!==false).length}건 · 제외 <span style="color:var(--td)">${CACHE.db.filter(r=>r.is_target===false).length}건</span> · 할당완료 ${assigned.length}건 · 미할당 ${unassigned.length}건</div>
+  <div class="ua" onclick="document.getElementById('csv-input').click()"><i class="ti ti-upload" style="font-size:20px;color:var(--t2);display:block;margin:0 auto 5px"></i><div style="font-size:13px;color:var(--t2)">CSV 파일 업로드</div><div style="font-size:11px;color:var(--t2);margin-top:4px">컬럼 순서: <strong>본사명, 가맹점수, 권역(동부/서부), 대상유무(Y/N)</strong><br>대상유무 <strong>N</strong> → 자동 분배 및 TM 대상 제외</div></div>
   <input type="file" id="csv-input" accept=".csv" style="display:none">`
   if(CACHE.db.length>0){
-    h+=`<div class="fr"><select id="db-fr" onchange="refreshDBTable()"><option value="">전체 권역</option><option value="east">동부</option><option value="west">서부</option></select><select id="db-fs" onchange="refreshDBTable()"><option value="">전체 상태</option><option value="u">미할당</option><option value="a1">1차 할당</option><option value="r2">2차 대기</option><option value="a2">2차 할당</option></select><input type="text" id="db-sk" placeholder="본사명 검색" oninput="refreshDBTable()" style="max-width:140px"></div>
-    <div class="dbtw"><table class="dbt"><colgroup><col style="width:30%"><col style="width:10%"><col style="width:8%"><col style="width:18%"><col style="width:18%"><col style="width:16%"></colgroup><thead><tr><th>본사명</th><th>가맹점</th><th>권역</th><th>1차 담당</th><th>2차 담당</th><th>관리</th></tr></thead><tbody id="db-tbody"></tbody></table></div>`
+    h+=`<div class="fr"><select id="db-fr" onchange="refreshDBTable()"><option value="">전체 권역</option><option value="east">동부</option><option value="west">서부</option></select><select id="db-fs" onchange="refreshDBTable()"><option value="">전체 상태</option><option value="u">미할당</option><option value="a1">1차 할당</option><option value="r2">2차 대기</option><option value="a2">2차 할당</option></select>
+      <select id="db-ft" onchange="refreshDBTable()"><option value="">전체 대상</option><option value="y">대상(Y)</option><option value="n">제외(N)</option></select><input type="text" id="db-sk" placeholder="본사명 검색" oninput="refreshDBTable()" style="max-width:140px"></div>
+    <div class="dbtw"><table class="dbt"><colgroup><col style="width:26%"><col style="width:9%"><col style="width:7%"><col style="width:8%"><col style="width:16%"><col style="width:16%"><col style="width:18%"></colgroup><thead><tr><th>본사명</th><th>가맹점</th><th>권역</th><th style="width:80px">대상</th><th>1차 담당</th><th>2차 담당</th><th>관리</th></tr></thead><tbody id="db-tbody"></tbody></table></div>`
   }
   h+=`</div>`;return h
 }
 function refreshDBTable(){
   const tbody=document.getElementById('db-tbody');if(!tbody)return
   const rf=document.getElementById('db-fr')?.value||'',sf=document.getElementById('db-fs')?.value||'',kw=(document.getElementById('db-sk')?.value||'').trim().toLowerCase()
+  const tf2=document.getElementById('db-ft')?.value||''
   const rows=CACHE.db.filter(r=>{
     if(rf&&r.region!==rf)return false;if(kw&&!r.name.toLowerCase().includes(kw))return false
     const st=r.assign2?'a2':r.r2_enabled?'r2':r.assign1?'a1':'u'
-    if(sf&&st!==sf)return false;return true
+    if(sf&&st!==sf)return false
+    if(tf2==='y'&&r.is_target===false)return false
+    if(tf2==='n'&&r.is_target!==false)return false
+    return true
   })
   tbody.innerHTML=rows.slice(0,50).map(r=>{
     const st=r.assign2?'a2':r.r2_enabled?'r2':r.assign1?'a1':'u'
     const stL=r.assign2?'2차할당':r.r2_enabled?'2차대기':r.assign1?'1차할당':'미할당'
     const a2h=r.assign2?`<span style="font-size:12px;color:var(--ti)">${r.assign2}</span>`:r.r2_enabled?`<select style="font-size:11px;padding:2px 4px;max-width:90px" onchange="setAssign2(${r.id},this.value)"><option value="">담당자 선택</option>${teamMembers(r.region).filter(m=>m!==r.assign1).map(m=>`<option>${m}</option>`).join('')}</select>`:`<span style="font-size:11px;color:var(--t2)">—</span>`
-    return `<tr><td title="${r.name}">${r.name}</td><td>${r.branches.toLocaleString()}</td><td>${r.region==='east'?'동부':'서부'}</td><td style="font-size:12px">${r.assign1||'<span style="color:var(--t2)">미배정</span>'}</td><td>${a2h}</td><td><div style="display:flex;gap:4px;align-items:center"><span class="bdg ${st}" style="font-size:10px">${stL}</span>${!r.r2_enabled&&r.assign1&&!r.assign2?`<button class="btn s" onclick="enableR2(${r.id})" style="padding:2px 5px;font-size:10px;color:var(--ti);border-color:#B5D4F4">2차</button>`:''}</div></td></tr>`
+    const allActiveMA = [...EAST,...WEST].filter(m=>isActiveMa(m))
+    const a1ChangeHtml = r.assign1 ? `<select style="font-size:10px;padding:1px 3px;max-width:70px;margin-left:3px" onchange="changeAssign1(${r.id},this.value)" title="1차 담당자 변경"><option value="">변경</option>${allActiveMA.filter(m=>m!==r.assign1).map(m=>`<option>${m}</option>`).join('')}</select>` : ''
+    const isTarget = r.is_target !== false
+    const targetBadge = isTarget
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:99px;background:var(--bgs);color:var(--ts)">Y</span>`
+      : `<span style="font-size:10px;padding:1px 7px;border-radius:99px;background:var(--bgd);color:var(--td)">N</span>`
+    const rowStyle = isTarget ? '' : 'opacity:.45;'
+    return `<tr style="${rowStyle}"><td title="${r.name}">${r.name}${!isTarget?` <span style="font-size:9px;color:var(--td)">(제외)</span>`:''}</td><td>${r.branches.toLocaleString()}</td><td>${r.region==='east'?'동부':'서부'}</td><td>${targetBadge} <button class="btn s" onclick="toggleTarget(${r.id},${isTarget})" style="padding:1px 6px;font-size:10px">${isTarget?'제외':'포함'}</button></td><td style="font-size:12px">${r.assign1||'<span style="color:var(--t2)">미배정</span>'}${a1ChangeHtml}</td><td>${a2h}</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span class="bdg ${st}" style="font-size:10px">${stL}</span>${!r.r2_enabled&&r.assign1&&!r.assign2?`<button class="btn s" onclick="enableR2(${r.id})" style="padding:2px 5px;font-size:10px;color:var(--ti);border-color:#B5D4F4">2차</button>`:''}<button class="btn s" onclick="deleteDBRow(${r.id})" style="padding:2px 5px;font-size:10px;color:var(--td);border-color:#f7c1c1">삭제</button></div></td></tr>`
   }).join('')
 }
 async function setAssign2(id,ma){
@@ -626,6 +862,39 @@ async function setAssign2(id,ma){
   await sb.from('company_db').update({assign2:ma}).eq('id',id)
   const r=CACHE.db.find(x=>x.id===id);if(r)r.assign2=ma
   refreshDBTable()
+}
+
+async function toggleTarget(id, currentIsTarget){
+  const r = CACHE.db.find(x=>x.id===id)
+  if(!r) return
+  const newVal = !currentIsTarget
+  const label = newVal ? '대상으로 변경' : '제외로 변경'
+  if(!confirm(`"${r.name}"을 ${label}하시겠습니까?`)) return
+  await sb.from('company_db').update({is_target: newVal}).eq('id', id)
+  r.is_target = newVal
+  refreshDBTable()
+  renderAll()
+}
+
+async function changeAssign1(id,ma){
+  if(!ma)return
+  if(!confirm(`1차 담당자를 "${ma}"으로 변경하시겠습니까?
+(기존 이력은 보존됩니다)`))return
+  await sb.from('company_db').update({assign1:ma}).eq('id',id)
+  const r=CACHE.db.find(x=>x.id===id);if(r)r.assign1=ma
+  refreshDBTable()
+  renderAll()
+}
+
+async function deleteDBRow(id){
+  const r=CACHE.db.find(x=>x.id===id)
+  if(!r)return
+  if(!confirm(`"${r.name}" 을(를) DB에서 삭제하시겠습니까?
+(TM 기록은 보존됩니다)`))return
+  await sb.from('company_db').delete().eq('id',id)
+  CACHE.db=CACHE.db.filter(x=>x.id!==id)
+  refreshDBTable()
+  renderAll()
 }
 async function enableR2(id){
   await sb.from('company_db').update({r2_enabled:true}).eq('id',id)
@@ -639,9 +908,13 @@ function handleFile(e){
   reader.onload=async ev=>{
     Papa.parse(ev.target.result,{header:true,skipEmptyLines:true,complete:async res=>{
       const rows=res.data.map(row=>{
-        const name=(row['본사명']||row['name']||'').trim(),branches=parseInt(row['가맹점수']||row['가맹점']||0),region=(row['권역']||'').trim()
+        const name=(row['본사명']||row['name']||'').trim()
+        const branches=parseInt(row['가맹점수']||row['가맹점']||0)
+        const region=(row['권역']||'').trim()
+        const targetRaw=(row['대상유무']||row['대상']||'Y').toString().trim().toUpperCase()
+        const is_target = targetRaw !== 'N'  // Y 또는 빈값이면 대상, N이면 제외
         const r=region.includes('서')||region.toLowerCase().includes('west')?'west':'east'
-        return name?{name,branches:isNaN(branches)?0:branches,region:r,assign1:null,assign2:null,r2_enabled:false}:null
+        return name?{name,branches:isNaN(branches)?0:branches,region:r,is_target,assign1:null,assign2:null,r2_enabled:false}:null
       }).filter(Boolean)
       if(!rows.length){alert('유효한 데이터가 없습니다.');return}
       const{data,error}=await sb.from('company_db').insert(rows).select()
@@ -653,8 +926,8 @@ function handleFile(e){
   reader.readAsText(file,'UTF-8')
 }
 async function doAutoAssign(){
-  const eDB=CACHE.db.filter(r=>r.region==='east'&&!r.assign1).sort((a,b)=>b.branches-a.branches)
-  const wDB=CACHE.db.filter(r=>r.region==='west'&&!r.assign1).sort((a,b)=>b.branches-a.branches)
+  const eDB=CACHE.db.filter(r=>r.region==='east'&&!r.assign1&&r.is_target!==false).sort((a,b)=>b.branches-a.branches)
+  const wDB=CACHE.db.filter(r=>r.region==='west'&&!r.assign1&&r.is_target!==false).sort((a,b)=>b.branches-a.branches)
   const updates=[]
   eDB.forEach((r,i)=>{r.assign1=EAST[i%EAST.length];updates.push({id:r.id,assign1:r.assign1})})
   wDB.forEach((r,i)=>{r.assign1=WEST[i%WEST.length];updates.push({id:r.id,assign1:r.assign1})})
@@ -670,15 +943,33 @@ async function resetDB(){
 // ── 누적 현황 ──
 function renderCum(){
   const dates=last30wd()
-  let h=`<div class="stl">최근 30 평일 누적 현황</div><div class="cug">`
-  ALL_MA.forEach(({m,team})=>{
+  let h=`<div class="stl">최근 30 평일 누적 현황</div>`
+
+  // 동부팀 먼저
+  h+=`<div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:0.5px solid var(--b3)">🔵 동부팀 (8명)</div>`
+  h+=`<div class="cug" style="margin-bottom:1.25rem">`
+  EAST.map(m=>({m,team:'east'})).forEach(({m,team})=>{
     let total=0,ach=0
     dates.forEach(d=>{const c=logs4(m,d).length,q=mq(m,d);total+=c;if(c>=q)ach++})
     const r2cnt=CACHE.db.filter(r=>r.assign2===m).length
     const dots=dates.slice(-14).map(d=>{const c=logs4(m,d).length,q=mq(m,d);const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`}).join('')
     h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?`<span class="t2nd">2차 ${r2cnt}</span>`:''}</div><div class="cut">${team==='east'?'동부팀':'서부팀'}</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${dates.length>0?Math.round(ach/dates.length*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
   })
-  h+=`</div>`;document.getElementById('tab-cum').innerHTML=h
+  h+=`</div>`
+
+  // 서부팀
+  h+=`<div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:0.5px solid var(--b3)">🟠 서부팀 (9명)</div>`
+  h+=`<div class="cug">`
+  WEST.map(m=>({m,team:'west'})).forEach(({m,team})=>{
+    let total=0,ach=0
+    dates.forEach(d=>{const c=logs4(m,d).length,q=mq(m,d);total+=c;if(c>=q)ach++})
+    const r2cnt=CACHE.db.filter(r=>r.assign2===m).length
+    const dots=dates.slice(-14).map(d=>{const c=logs4(m,d).length,q=mq(m,d);const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`}).join('')
+    h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?`<span class="t2nd">2차 ${r2cnt}</span>`:''}</div><div class="cut">서부팀</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${dates.length>0?Math.round(ach/dates.length*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
+  })
+  h+=`</div>`
+
+  document.getElementById('tab-cum').innerHTML=h
 }
 function last30wd(){const a=[];let i=0,cnt=0;while(cnt<30){const d=new Date();d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);if(isWorkday(ds)){a.unshift(ds);cnt++;}i++;if(i>90)break;}return a}
 
@@ -690,6 +981,7 @@ function chgDate(dir,team){const d=new Date(CUR_DATE+'T00:00:00');d.setDate(d.ge
 // ── TM 기록 모달 ──
 let mMA=null,mTeam=null
 function openModal(ma,team){
+  // TM 기록은 인증 없이 이름 선택만으로 가능
   mMA=ma;mTeam=team
   const date=CUR_DATE,logs=logs4(ma,date),q=mq(ma,date)
   const assigned=CACHE.db.filter(r=>r.assign1===ma||r.assign2===ma),isH=!isWorkday(date)
@@ -755,6 +1047,284 @@ async function saveLog(){
 function closeModal(){document.getElementById('mov').classList.remove('open')}
 function closeModalBg(e){if(e.target===document.getElementById('mov'))closeModal()}
 
+// ── 인력관리 탭 ──
+function renderStaff(){
+  const allMA = ALL_MA
+  let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+    <span class="stl" style="margin-bottom:0">인력 관리</span>
+    <div style="font-size:12px;color:var(--t2)">상태 변경 후 저장되며, TM 기록은 모두 보존됩니다</div>
+  </div>`
+
+  // 상태별 요약
+  const active = allMA.filter(({m})=>getMaStatus(m)==='active').length
+  const transferred = allMA.filter(({m})=>getMaStatus(m)==='transferred').length
+  const resigned = allMA.filter(({m})=>getMaStatus(m)==='resigned').length
+  h+=`<div class="sr" style="margin-bottom:1.25rem">
+    <div class="sc"><div class="sl">재직중</div><div class="sv" style="color:#1D9E75">${active}명</div></div>
+    <div class="sc"><div class="sl">부서이동</div><div class="sv" style="color:#BA7517">${transferred}명</div></div>
+    <div class="sc"><div class="sl">퇴직</div><div class="sv" style="color:#A32D2D">${resigned}명</div></div>
+  </div>`
+
+  // 팀별 테이블
+  ;['east','west'].forEach(team=>{
+    const members = teamMembers(team)
+    h+=`<div class="pn" style="margin-bottom:1rem">
+    <div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:80px">이름</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:90px">상태</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:110px">이동/퇴직일</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500">비고</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:100px">인수인계</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:70px">저장</th>
+    </tr></thead><tbody>`
+
+    members.forEach(m=>{
+      const st = MA_STATUS[m] || {status:'active',date:'',note:''}
+      const stColor = st.status==='active'?'#1D9E75':st.status==='transferred'?'#BA7517':'#A32D2D'
+      const stLabel = st.status==='active'?'재직중':st.status==='transferred'?'부서이동':'퇴직'
+      // 해당 MA의 추가상담 건수
+      const followUpCount = CACHE.logs.filter(l=>l.ma_name===m&&l.consult_result==='추가상담').length
+      const dbCount = CACHE.db.filter(r=>r.assign1===m||r.assign2===m).length
+
+      h+=`<tr style="border-bottom:0.5px solid var(--b3)">
+        <td style="padding:8px"><span style="font-weight:500">${m}</span>
+          ${st.status!=='active'?`<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:${st.status==='transferred'?'var(--bgw)':'var(--bgd)'};color:${stColor};margin-left:4px">${stLabel}</span>`:''}
+        </td>
+        <td style="padding:8px">
+          <select id="st-status-${m}" style="font-size:12px;padding:3px 6px" onchange="onStaffStatusChange('${m}')">
+            <option value="active" ${st.status==='active'?'selected':''}>재직중</option>
+            <option value="transferred" ${st.status==='transferred'?'selected':''}>부서이동</option>
+            <option value="resigned" ${st.status==='resigned'?'selected':''}>퇴직</option>
+          </select>
+        </td>
+        <td style="padding:8px"><input type="date" id="st-date-${m}" value="${st.date||''}" style="font-size:12px;padding:3px 6px;max-width:130px"></td>
+        <td style="padding:8px"><input type="text" id="st-note-${m}" value="${st.note||''}" placeholder="예: 영업2팀 이동" style="font-size:12px;padding:3px 6px;width:100%"></td>
+        <td style="padding:8px">
+          ${st.status!=='active'&&followUpCount>0?
+            `<button class="btn s" onclick="openHandover('${m}','${team}')" style="font-size:11px;color:var(--ti);border-color:#B5D4F4;white-space:nowrap">
+              추가상담 ${followUpCount}건 인계
+            </button>`:
+            `<span style="font-size:11px;color:var(--t2)">추가상담 ${followUpCount}건${dbCount>0?` / DB ${dbCount}건`:''}</span>`
+          }
+        </td>
+        <td style="padding:8px">
+          <button class="btn s p" onclick="saveStaffStatus('${m}')" style="font-size:11px">저장</button>
+        </td>
+      </tr>`
+    })
+    h+=`</tbody></table></div>`
+  })
+
+  // PIN 관리 + 직원 추가 섹션 (관리자만)
+  if(isAdmin()){
+    // 현재 등록된 모든 직원 목록 (EAST+WEST+관리자)
+    const allMembers = [
+      ...ADMIN_NAMES.map(n=>({name:n,role:'admin',team:null})),
+      ...EAST.map(n=>({name:n,role:'ma',team:'east'})),
+      ...WEST.map(n=>({name:n,role:'ma',team:'west'}))
+    ]
+    h+=`<div class="pn">
+    <div class="pnt"><i class="ti ti-users-plus" style="font-size:15px"></i>직원 추가 / PIN 설정 <span style="font-size:11px;color:var(--t2);font-weight:400;margin-left:4px">관리자 전용</span></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:1rem">신규 직원 추가 또는 기존 직원 PIN 재설정. 직원 추가 후 달력/현황에 반영하려면 관리자에게 코드 수정을 요청하세요.</div>
+
+    <div style="background:var(--bg2);border-radius:var(--r1);padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:500;color:var(--t1);margin-bottom:10px">신규 직원 추가</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">이름</label>
+          <input type="text" id="new-ma-name" placeholder="홍길동" style="width:100%;font-size:13px;padding:6px 8px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">팀</label>
+          <select id="new-ma-team" style="width:100%;font-size:13px;padding:6px 8px">
+            <option value="east">동부팀</option>
+            <option value="west">서부팀</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">역할</label>
+          <select id="new-ma-role" style="width:100%;font-size:13px;padding:6px 8px">
+            <option value="ma">영업사원 (MA)</option>
+            <option value="admin">관리자</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">초기 PIN (4자리 이상)</label>
+          <input type="password" id="new-ma-pin" placeholder="초기 PIN" style="width:100%;font-size:13px;padding:6px 8px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">PIN 확인</label>
+          <input type="password" id="new-ma-pin2" placeholder="PIN 재입력" style="width:100%;font-size:13px;padding:6px 8px">
+        </div>
+        <button class="btn p" onclick="addNewMember()" style="white-space:nowrap;padding:8px 14px">추가</button>
+      </div>
+      <div id="new-ma-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
+    </div>
+
+    <div style="background:var(--bgi);border-radius:var(--r1);padding:12px 14px">
+      <div style="font-size:13px;font-weight:500;color:var(--ti);margin-bottom:6px">🔑 관리자 PIN 변경 방법</div>
+      <div style="font-size:12px;color:var(--t1);line-height:1.8">
+        1. GitHub에서 <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">index.html</code> 파일 열기<br>
+        2. 파일 상단에서 아래 코드 찾기<br>
+        <code style="background:var(--bg2);padding:4px 8px;border-radius:4px;display:block;margin:6px 0;font-size:12px">const ADMIN_PIN = '0000'</code>
+        3. <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">0000</code> 부분을 원하는 PIN으로 변경 후 저장
+      </div>
+    </div>
+    </div>`
+  }
+
+  document.getElementById('tab-staff').innerHTML=h
+}
+
+function onStaffStatusChange(ma){
+  // 상태 변경 시 UI 힌트만 (저장은 버튼 클릭)
+}
+
+async function savePIN(){
+  const target = document.getElementById('pin-target')?.value
+  const newPin = document.getElementById('pin-new')?.value.trim()
+  const confirm2 = document.getElementById('pin-confirm')?.value.trim()
+  const msg = document.getElementById('pin-msg')
+  if(!target){ msg.style.color='var(--td)'; msg.textContent='대상을 선택해주세요.'; return }
+  if(!newPin || newPin.length < 4){ msg.style.color='var(--td)'; msg.textContent='PIN은 4자리 이상이어야 합니다.'; return }
+  if(newPin !== confirm2){ msg.style.color='var(--td)'; msg.textContent='PIN이 일치하지 않습니다.'; return }
+  const [name, role] = target.split('|')
+  const team = EAST.includes(name)?'east':WEST.includes(name)?'west':null
+  const pin_hash = hashPin(name, newPin)
+  msg.style.color='var(--t2)'; msg.textContent='저장 중...'
+  try{
+    const { data:existing } = await sb.from('tm_users').select('name').eq('name',name).single()
+    if(existing){
+      await sb.from('tm_users').update({pin_hash, role, team}).eq('name',name)
+    } else {
+      await sb.from('tm_users').insert({name, pin_hash, role, team})
+    }
+    msg.style.color='var(--ts)'; msg.textContent=`✓ ${name} PIN 저장 완료`
+    document.getElementById('pin-new').value=''
+    document.getElementById('pin-confirm').value=''
+  }catch(e){
+    msg.style.color='var(--td)'; msg.textContent='저장 실패: '+e.message
+  }
+}
+
+function saveStaffStatus(ma){
+  const status = document.getElementById(`st-status-${ma}`)?.value || 'active'
+  const date   = document.getElementById(`st-date-${ma}`)?.value || ''
+  const note   = document.getElementById(`st-note-${ma}`)?.value || ''
+  MA_STATUS[ma] = { status, date, note }
+  saveMaStatus()
+  renderStaff()
+  // 부서이동/퇴직이면 해당 MA의 DB 배정 경고
+  if(status !== 'active'){
+    const dbAssigned = CACHE.db.filter(r=>r.assign1===ma||r.assign2===ma)
+    if(dbAssigned.length>0){
+      const msg = `${ma}님은 배정된 본사 DB가 ${dbAssigned.length}건 있습니다.
+[DB관리] 탭에서 담당자를 변경해 주세요.`
+      alert(msg)
+    }
+  }
+}
+
+function openHandover(fromMA, team){
+  const followUps = CACHE.logs.filter(l=>l.ma_name===fromMA&&l.consult_result==='추가상담')
+  const dbAssigned = CACHE.db.filter(r=>r.assign1===fromMA||r.assign2===fromMA)
+  const activeMembers = teamMembers(team).filter(m=>m!==fromMA&&isActiveMa(m))
+
+  let h=`<div class="mot">인수인계 — ${fromMA}</div>
+  <div class="mos" style="margin-bottom:1rem">추가 상담진행 ${followUps.length}건 · 배정 DB ${dbAssigned.length}건</div>
+
+  <div style="background:var(--bgi);border-radius:var(--r1);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ti)">
+    📋 TM 기록은 삭제되지 않고 <strong>${fromMA}</strong> 이름으로 영구 보존됩니다.<br>
+    인수인계는 <strong>배정 DB 담당자 변경</strong>과 <strong>추가상담 메모 이전</strong>만 진행합니다.
+  </div>
+
+  <div class="fs"><div class="fst">인수 담당자 선택</div>
+  <div class="frow"><label class="flbl">인계받을 MA <span class="req">*</span></label>
+    <select id="hv-to" style="width:100%">
+      <option value="">선택하세요</option>
+      ${activeMembers.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      ${[...EAST,...WEST].filter(m=>m!==fromMA&&isActiveMa(m)&&!activeMembers.includes(m)).map(m=>`<option value="${m}">${m} (타팀)</option>`).join('')}
+    </select>
+  </div></div>
+
+  <div class="fs"><div class="fst">추가 상담진행 건 (${followUps.length}건)</div>`
+
+  if(followUps.length>0){
+    followUps.slice(0,10).forEach(l=>{
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--b3)">
+        <input type="checkbox" id="hv-log-${l.id}" checked style="width:14px;height:14px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${l.company}</div>
+          <div style="font-size:11px;color:var(--t2)">${l.log_date} · ${l.consult_detail?.slice(0,40)||''}${(l.consult_detail?.length||0)>40?'...':''}</div>
+        </div>
+      </div>`
+    })
+    if(followUps.length>10) h+=`<div style="font-size:11px;color:var(--t2);padding:4px 0">+${followUps.length-10}건 더...</div>`
+  } else {
+    h+=`<div style="font-size:12px;color:var(--t2)">추가 상담진행 건이 없습니다.</div>`
+  }
+  h+=`</div>`
+
+  if(dbAssigned.length>0){
+    h+=`<div class="fs"><div class="fst">배정 DB (${dbAssigned.length}건) — 담당자도 함께 변경</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <input type="checkbox" id="hv-db-all" checked style="width:14px;height:14px">
+      <label for="hv-db-all" style="font-size:12px;color:var(--t2)">전체 DB 담당자 변경</label>
+    </div>`
+    dbAssigned.slice(0,5).forEach(r=>{
+      h+=`<div style="font-size:12px;color:var(--t2);padding:2px 0">${r.name} (${r.branches}개점) · ${r.assign1===fromMA?'1차':'2차'} 담당</div>`
+    })
+    if(dbAssigned.length>5) h+=`<div style="font-size:11px;color:var(--t2)">+${dbAssigned.length-5}건 더</div>`
+    h+=`</div>`
+  }
+
+  h+=`<div class="fa">
+    <button class="btn" onclick="closeModal()">취소</button>
+    <button class="btn p" onclick="execHandover('${fromMA}','${team}')">인수인계 실행</button>
+  </div>`
+
+  document.getElementById('moc').innerHTML=h
+  document.getElementById('mov').classList.add('open')
+}
+
+async function execHandover(fromMA, team){
+  const toMA = document.getElementById('hv-to')?.value
+  if(!toMA){ alert('인계받을 MA를 선택해주세요.'); return }
+  if(!confirm(`${fromMA} → ${toMA} 인수인계를 진행하시겠습니까?`)) return
+
+  let done=0, errors=[]
+
+  // DB 담당자 변경
+  const doDbChange = document.getElementById('hv-db-all')?.checked
+  if(doDbChange){
+    const dbAssigned = CACHE.db.filter(r=>r.assign1===fromMA||r.assign2===fromMA)
+    for(const r of dbAssigned){
+      try{
+        if(r.assign1===fromMA){
+          await sb.from('company_db').update({assign1:toMA}).eq('id',r.id)
+          r.assign1=toMA
+        }
+        if(r.assign2===fromMA){
+          await sb.from('company_db').update({assign2:toMA}).eq('id',r.id)
+          r.assign2=toMA
+        }
+        done++
+      }catch(e){ errors.push(r.name) }
+    }
+  }
+
+  closeModal()
+  alert(`인수인계 완료!
+DB 담당자 변경: ${done}건${errors.length>0?'
+실패: '+errors.join(', '):''}`)
+  renderStaff()
+  renderAll()
+}
+
 // ── 실시간 구독 (다른 사람이 저장하면 자동 반영) ──
 function setupRealtime(){
   sb.channel('tm-realtime')
@@ -772,23 +1342,17 @@ function setupRealtime(){
 
 // 페이지 로드 완료 후 Supabase 초기화 및 데이터 로드
 document.addEventListener("DOMContentLoaded", function(){
-  if(typeof supabase !== 'undefined'){
-    const { createClient } = supabase
-    sb = createClient(SUPABASE_URL, SUPABASE_KEY)
-    loadAll().then(setupRealtime)
-  } else {
-    // CDN 로드 대기 후 재시도
-    function waitForSupabase(){
-      if(typeof supabase !== 'undefined'){
-        const { createClient } = supabase
-        sb = createClient(SUPABASE_URL, SUPABASE_KEY)
-        loadAll().then(setupRealtime)
-      } else {
-        setTimeout(waitForSupabase, 50)
-      }
+  loadMaStatus()
+  function initSb(){
+    if(typeof supabase !== 'undefined'){
+      const { createClient } = supabase
+      sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+      loadAll().then(setupRealtime)  // 인증 없이 데이터 로드 (공개 현황)
+    } else {
+      setTimeout(initSb, 50)
     }
-    waitForSupabase()
   }
+  initSb()
 })
 </script>
 </body>
