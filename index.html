@@ -177,17 +177,8 @@ const SUPABASE_URL = 'https://zndbcmzquoaavsfojhhz.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZGJjbXpxdW9hYXZzZm9qaGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNTE5MzYsImV4cCI6MjA5NTkyNzkzNn0.5lI7H6QR5e-fJGBgQQu4Zwk4G_l3EZ4Dc8wM1cvokGs'
 // ════════════════════════════════════════════
 
-// supabase 라이브러리 로드 대기
+// Supabase 클라이언트 (초기화는 페이지 로드 완료 후)
 let sb = null
-function initSupabase(){
-  if(typeof supabase === 'undefined'){
-    setTimeout(initSupabase, 100)
-    return
-  }
-  const { createClient } = supabase
-  sb = createClient(SUPABASE_URL, SUPABASE_KEY)
-  loadAll().then(setupRealtime)
-}
 
 const EAST=['백현석','심재천','이동성','정승상','박재환','손혜령','권성은','김다진']
 const WEST=['임현묵','최용','조인호','박민국','강탄','우수민','조용준','장길평','박찬혜']
@@ -779,8 +770,26 @@ function setupRealtime(){
     .subscribe()
 }
 
-// loadAll은 initSupabase()에서 호출됨
-document.addEventListener("DOMContentLoaded", initSupabase)
+// 페이지 로드 완료 후 Supabase 초기화 및 데이터 로드
+document.addEventListener("DOMContentLoaded", function(){
+  if(typeof supabase !== 'undefined'){
+    const { createClient } = supabase
+    sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+    loadAll().then(setupRealtime)
+  } else {
+    // CDN 로드 대기 후 재시도
+    function waitForSupabase(){
+      if(typeof supabase !== 'undefined'){
+        const { createClient } = supabase
+        sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+        loadAll().then(setupRealtime)
+      } else {
+        setTimeout(waitForSupabase, 50)
+      }
+    }
+    waitForSupabase()
+  }
+})
 </script>
 </body>
 </html>
