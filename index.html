@@ -415,8 +415,19 @@ const HNAMES={
   '2030-05-09':'부처님오신날','2030-06-06':'현충일','2030-07-17':'제헌절','2030-08-15':'광복절','2030-09-11':'추석연휴','2030-09-12':'추석','2030-09-13':'추석연휴','2030-10-03':'개천절','2030-10-09':'한글날','2030-12-25':'크리스마스',
 }
 
-function isWorkday(ds){const dt=new Date(ds+'T00:00:00'),d=dt.getDay();return d!==0&&d!==6&&!KR_HOLIDAYS.has(ds)}
-function hName(ds){return HNAMES[ds]||null}
+function isWorkday(ds){
+  if(ds <= '2026-06-01') return false; // 6월 1일 이전 제외 처리
+  const dt=new Date(ds+'T00:00:00'),d=dt.getDay();
+  return d!==0&&d!==6&&!KR_HOLIDAYS.has(ds)
+}
+function hName(ds){
+  if(HNAMES[ds]) return HNAMES[ds];
+  if(ds <= '2026-06-01') {
+    const dt=new Date(ds+'T00:00:00'),d=dt.getDay();
+    if(d!==0 && d!==6) return '캠페인 일정아님';
+  }
+  return null;
+}
 
 // ── 핵심 유틸 함수 (변수 선언 전에 위치) ──
 function td(){return new Date().toISOString().slice(0,10)}
@@ -471,10 +482,11 @@ function reRenderActive(){
 
 // ── 캐시 헬퍼 ──
 function logs4(ma,date){return CACHE.logs.filter(l=>l.ma_name===ma&&l.log_date===date)}
+// 휴무일 경우 할당량을 0으로 반환
 function mq(ma,date){const q=CACHE.quotas.find(q=>q.ma_name===ma&&q.quota_date===date);return q?q.quota:1}
 function teamMembers(t){return t==='east'?EAST:WEST}
-function tdAch(team,date){return teamMembers(team).filter(m=>logs4(m,date).length>=mq(m,date)).length}
-function tdTot(team){return teamMembers(team).length}
+function tdAch(team,date){return teamMembers(team).filter(m=>{const q=mq(m,date);return q>0&&logs4(m,date).length>=q}).length}
+function tdTot(team,date){return teamMembers(team).filter(m=>mq(m,date)>0).length}
 
 function showTab(t){
   document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff','db'][i]===t))
@@ -546,28 +558,26 @@ function calHtml(team,selDate){
   for(let d=1;d<=dim;d++){
     const ds=`${yr}-${String(mo2).padStart(2,'0')}-${String(d).padStart(2,'0')}`
     const dt=new Date(ds+'T00:00:00'),dow=dt.getDay() // 0=일,6=토
-    const isWeekend=dow===0||dow===6
-    const isHol=KR_HOLIDAYS.has(ds)
-    const isOff=isWeekend||isHol
+    const isOff=!isWorkday(ds)
     const hn=hName(ds)
     const isSun=dow===0,isSat=dow===6
     if(isOff){
       // 공석 셀 — 날짜만 흐리게, 내용 없음
       let offStyle='background:var(--bg2);border-color:transparent;cursor:default;'
-      let dayColor=isSun?'color:#f09595':isSat?'color:#85b7eb':'color:#f09595'
+      let dayColor=isSun?'color:#f09595':isSat?'color:#85b7eb':(hn==='캠페인 일정아님'?'color:var(--t2)':'color:#f09595')
       h+=`<div class="cl" style="${offStyle}">
         <div class="cd" style="opacity:.5;${dayColor}">${d}</div>
-        ${hn?`<div class="hl-lbl" style="opacity:.7">${hn}</div>`:''}
+        ${hn?`<div class="hl-lbl" style="opacity:.7;${hn==='캠페인 일정아님'?'color:var(--t2)':''}">${hn}</div>`:''}
       </div>`
     } else {
       // 평일 셀
       const isToday=ds===today,isSel=ds===selDate
-      const eA=tdAch('east',ds),eT=tdTot('east'),wA=tdAch('west',ds),wT=tdTot('west')
-      const eR=eA/eT,wR=wA/wT
-      const eDot=eA>0?(eA>=eT?'#1D9E75':eR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)'
-      const wDot=wA>0?(wA>=wT?'#1D9E75':wR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)'
-      const eVC=eA>=eT?'#1D9E75':eA>0?'#BA7517':'var(--t2)'
-      const wVC=wA>=wT?'#1D9E75':wA>0?'#BA7517':'var(--t2)'
+      const eA=tdAch('east',ds),eT=tdTot('east',ds),wA=tdAch('west',ds),wT=tdTot('west',ds)
+      const eR=eT>0?eA/eT:0, wR=wT>0?wA/wT:0
+      const eDot=eT===0?(eA>0?'#1D9E75':'rgba(0,0,0,.18)'):(eA>0?(eA>=eT?'#1D9E75':eR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)')
+      const wDot=wT===0?(wA>0?'#1D9E75':'rgba(0,0,0,.18)'):(wA>0?(wA>=wT?'#1D9E75':wR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)')
+      const eVC=eT===0?(eA>0?'#1D9E75':'var(--t2)'):(eA>=eT?'#1D9E75':eA>0?'#BA7517':'var(--t2)')
+      const wVC=wT===0?(wA>0?'#1D9E75':'var(--t2)'):(wA>=wT?'#1D9E75':wA>0?'#BA7517':'var(--t2)')
       h+=`<div class="cl${isToday?' today':''}${isSel?' sel':''}" onclick="selDate('${ds}','${team}')">
         <div class="cd">${d}</div>${hn?`<div class="hl-lbl">${hn}</div>`:''}
         <div class="ctr">
@@ -644,24 +654,39 @@ async function saveQuickLog(){
   reRenderActive()
 }
 
-
 // ── 전체 탭 ──
 function renderAll(){
   const date=CUR_DATE
-  let tQ=0,dTM=0,fD=0
-  ALL_MA.forEach(({m})=>{const q=mq(m,date),c=logs4(m,date).length;tQ+=q;dTM+=Math.min(c,q);if(c>=q)fD++})
+  let tQ=0,dTM=0,fD=0,totMA=0
+  ALL_MA.forEach(({m})=>{
+    const q=mq(m,date)
+    if(q===0) return // 휴무자 제외
+    totMA++
+    const c=logs4(m,date).length
+    tQ+=q; dTM+=Math.min(c,q); if(c>=q) fD++
+  })
   const isH=!isWorkday(date)
-  let h=`<div class="dn"><button class="db" onclick="chgDate(-1,'all')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:var(--td)">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'all')">&#8250;</button></div>
-  ${isH?`<div class="hbanner">주말/공휴일입니다. TM 기록은 가능하나 달성률 집계에서 제외됩니다.</div>`:''}
-  <div class="sr"><div class="sc"><div class="sl">전체 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${dTM}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${fD}명</div></div><div class="sc"><div class="sl">전체 달성률</div><div class="sv">${tQ>0?Math.round(dTM/tQ*100):0}%</div></div><div class="sc"><div class="sl">DB 총계</div><div class="sv">${CACHE.db.length}건</div></div></div>`
+  let h=`<div class="dn"><button class="db" onclick="chgDate(-1,'all')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'all')">&#8250;</button></div>
+  ${isH?`<div class="hbanner">휴무일(주말/공휴일/캠페인외)입니다. TM 기록은 가능하나 달성률 집계에서 제외됩니다.</div>`:''}
+  <div class="sr"><div class="sc"><div class="sl">전체 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${dTM}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${fD}/${totMA}명</div></div><div class="sc"><div class="sl">전체 달성률</div><div class="sv">${tQ>0?Math.round(dTM/tQ*100):0}%</div></div><div class="sc"><div class="sl">DB 총계</div><div class="sv">${CACHE.db.length}건</div></div></div>`
   h+=calHtml('all',date)
   h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">`
   ;['east','west'].forEach(team=>{
-    const tms=teamMembers(team);let tQ2=0,tD=0,tF=0
-    tms.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length;tQ2+=q;tD+=Math.min(c,q);if(c>=q)tF++})
-    h+=`<div class="pn" style="margin-bottom:0"><div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div><div style="font-size:12px;color:var(--t2);margin-bottom:8px">할당 ${tQ2}건 · 달성 ${tD}건 · ${tQ2>0?Math.round(tD/tQ2*100):0}%</div>`
-    tms.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length,pct=Math.min(c/q,1);const bc=c>=q?'#1D9E75':c>0?'#BA7517':'var(--b3)';const ms2=isMe(m)?';font-weight:600;color:var(--ti)':''
-        h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="font-size:12px;width:54px;flex-shrink:0${ms2}">${m}${isMe(m)?' ◀':''}</span><div class="pw" style="flex:1"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div><span style="font-size:11px;color:var(--t2);width:30px;text-align:right">${c}/${q}</span></div>`})
+    const tms=teamMembers(team);let tQ2=0,tD=0,tF=0,tTot=0
+    tms.forEach(m=>{
+      const q=mq(m,date); if(q===0) return; // 휴무 제외
+      tTot++; const c=logs4(m,date).length;
+      tQ2+=q; tD+=Math.min(c,q); if(c>=q) tF++
+    })
+    h+=`<div class="pn" style="margin-bottom:0"><div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div><div style="font-size:12px;color:var(--t2);margin-bottom:8px">대상 ${tTot}명 · 할당 ${tQ2}건 · 달성 ${tD}건 · ${tQ2>0?Math.round(tD/tQ2*100):0}%</div>`
+    tms.forEach(m=>{
+      const q=mq(m,date),c=logs4(m,date).length
+      const isV = q===0
+      const pct = isV ? 0 : Math.min(c/q,1)
+      const bc = isV ? 'var(--b3)' : (c>=q?'#1D9E75':c>0?'#BA7517':'var(--b3)')
+      const ms2 = isMe(m)?';font-weight:600;color:var(--ti)':''
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;${isV?'opacity:0.5':''}"><span style="font-size:12px;width:54px;flex-shrink:0${ms2}">${m}${isMe(m)?' ◀':''}</span><div class="pw" style="flex:1"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div><span style="font-size:11px;color:var(--t2);width:36px;text-align:right">${isV?'휴무':`${c}/${q}`}</span></div>`
+    })
     h+=`</div>`
   })
   
@@ -684,27 +709,36 @@ function promptCustomQt(ma, date, team) {
 
 // ── 팀 탭 ──
 function renderTeam(team){
-  const date=CUR_DATE,members=teamMembers(team);let tQ=0,tD=0,tF=0
-  members.forEach(m=>{const q=mq(m,date),c=logs4(m,date).length;tQ+=q;tD+=Math.min(c,q);if(c>=q)tF++})
+  const date=CUR_DATE,members=teamMembers(team);let tQ=0,tD=0,tF=0,totMA=0
+  members.forEach(m=>{
+    const q=mq(m,date); if(q===0) return; // 휴무 제외
+    totMA++; const c=logs4(m,date).length;
+    tQ+=q; tD+=Math.min(c,q); if(c>=q) tF++
+  })
   const isH=!isWorkday(date)
-  let h=`<div class="dn"><button class="db" onclick="chgDate(-1,'${team}')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:var(--td)">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'${team}')">&#8250;</button></div>
-  <div class="sr"><div class="sc"><div class="sl">팀 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${tD}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${tF}명</div></div><div class="sc"><div class="sl">달성률</div><div class="sv">${tQ>0?Math.round(tD/tQ*100):0}%</div></div></div>`
+  let h=`<div class="dn"><button class="db" onclick="chgDate(-1,'${team}')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'${team}')">&#8250;</button></div>
+  <div class="sr"><div class="sc"><div class="sl">팀 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${tD}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${tF}/${totMA}명</div></div><div class="sc"><div class="sl">달성률</div><div class="sv">${tQ>0?Math.round(tD/tQ*100):0}%</div></div></div>`
   h+=calHtml(team,date)
   h+=`<div class="stl">${team==='east'?'동부팀 (8명)':'서부팀 (9명)'} MA 현황</div><div class="mg">`
   members.forEach(m=>{
-    const q=mq(m,date),cnt=logs4(m,date).length,pct=Math.min(cnt/q,1)
-    const bc=cnt>=q?'#1D9E75':cnt>0?'#BA7517':'var(--b3)',sc=cnt>=q?'done':cnt>0?'partial':'none'
+    const q=mq(m,date),cnt=logs4(m,date).length
+    const isV = q===0
+    const pct = isV ? 0 : Math.min(cnt/q,1)
+    const bc = isV ? 'var(--b3)' : (cnt>=q?'#1D9E75':cnt>0?'#BA7517':'var(--b3)')
+    const sc = isV ? 'none' : (cnt>=q?'done':cnt>0?'partial':'none')
     const assigned=CACHE.db.filter(r=>r.assign1===m||r.assign2===m),r2cnt=CACHE.db.filter(r=>r.assign2===m).length
-    const isCustom = q !== 1 && q !== 3;
-    h+=`<div class="mc ${sc}" onclick="openModal('${m}','${team}')">
-      <div class="mn">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''}</div>
-      <div class="ms">${cnt}/${q}건 ${cnt>=q?'✓ 완료':cnt>0?'진행중':'미시작'}</div>
+    const isCustom = q !== 1 && q !== 3 && q !== 0;
+
+    h+=`<div class="mc ${sc}" onclick="openModal('${m}','${team}')" style="${isV?'opacity:0.6;background:var(--bg2)':''}">
+      <div class="mn">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''} ${isV?'<span style="font-size:10px;color:var(--t2);font-weight:400">(휴무)</span>':''}</div>
+      <div class="ms">${isV?'휴무/부재':`${cnt}/${q}건 ${cnt>=q?'✓ 완료':cnt>0?'진행중':'미시작'}`}</div>
       <div class="pw"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div>
-      <div class="mp">${Math.round(pct*100)}%</div>
+      <div class="mp">${isV?'-':Math.round(pct*100)+'%'}</div>
       <div class="qr" onclick="event.stopPropagation()"><span class="ql">할당량</span><div class="qt">
-        <button class="qtb ${q===1?'on':''}" onclick="setQtBtn('${m}','${date}',1,'${team}')">1건</button>
-        <button class="qtb ${q===3?'on':''}" onclick="setQtBtn('${m}','${date}',3,'${team}')">3건</button>
-        <button class="qtb ${isCustom?'on':''}" onclick="promptCustomQt('${m}','${date}','${team}')">${isCustom ? q+'건' : '4건+'}</button>
+        <button class="qtb ${q===1?'on':''}" onclick="setQtBtn('${m}','${date}',1,'${team}')" style="padding:2px 5px">1</button>
+        <button class="qtb ${q===3?'on':''}" onclick="setQtBtn('${m}','${date}',3,'${team}')" style="padding:2px 5px">3</button>
+        <button class="qtb ${isCustom?'on':''}" onclick="promptCustomQt('${m}','${date}','${team}')" style="padding:2px 5px" title="직접입력">${isCustom ? q : '+'}</button>
+        <button class="qtb ${q===0?'on':''}" style="margin-left:2px;padding:2px 5px;${q===0?'background:var(--bgd);color:var(--td);border-color:transparent':''}" onclick="setQtBtn('${m}','${date}',0,'${team}')">휴무</button>
       </div></div>
       ${assigned.length>0?'<div style="margin-top:6px">'+assigned.slice(0,3).map(r=>'<div class="ai '+(r.assign2===m?'r2':'')+'">'+( r.assign2===m?'[2차] ':'')+'<i class="ti ti-building" style="font-size:11px"></i> '+r.name+'</div>').join('')+(assigned.length>3?'<div class="ai">+' +(assigned.length-3)+'건 더</div>':'')+'</div>':''}
     </div>`
@@ -958,11 +992,17 @@ function renderCum(){
   h+=`<div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:0.5px solid var(--b3)">🔵 동부팀 (8명)</div>`
   h+=`<div class="cug" style="margin-bottom:1.25rem">`
   EAST.map(m=>({m,team:'east'})).forEach(({m,team})=>{
-    let total=0,ach=0
-    dates.forEach(d=>{const c=logs4(m,d).length,q=mq(m,d);total+=c;if(c>=q)ach++})
+    let total=0,ach=0,workDays=0
+    dates.forEach(d=>{const q=mq(m,d);if(q===0)return;workDays++;const c=logs4(m,d).length;total+=c;if(c>=q)ach++})
     const r2cnt=CACHE.db.filter(r=>r.assign2===m).length
-    const dots=dates.slice(-14).map(d=>{const c=logs4(m,d).length,q=mq(m,d);const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`}).join('')
-    h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''}</div><div class="cut">${team==='east'?'동부팀':'서부팀'}</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${dates.length>0?Math.round(ach/dates.length*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
+    const dots=dates.slice(-14).map(d=>{
+      const q=mq(m,d);
+      if(q===0) return `<span class="sd" style="background:transparent;border:0.5px solid var(--b3)" title="${d}:휴무"></span>`
+      const c=logs4(m,d).length;
+      const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';
+      return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`
+    }).join('')
+    h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''}</div><div class="cut">${team==='east'?'동부팀':'서부팀'}</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}/${workDays}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${workDays>0?Math.round(ach/workDays*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
   })
   h+=`</div>`
 
@@ -970,11 +1010,17 @@ function renderCum(){
   h+=`<div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:0.5px solid var(--b3)">🟠 서부팀 (9명)</div>`
   h+=`<div class="cug">`
   WEST.map(m=>({m,team:'west'})).forEach(({m,team})=>{
-    let total=0,ach=0
-    dates.forEach(d=>{const c=logs4(m,d).length,q=mq(m,d);total+=c;if(c>=q)ach++})
+    let total=0,ach=0,workDays=0
+    dates.forEach(d=>{const q=mq(m,d);if(q===0)return;workDays++;const c=logs4(m,d).length;total+=c;if(c>=q)ach++})
     const r2cnt=CACHE.db.filter(r=>r.assign2===m).length
-    const dots=dates.slice(-14).map(d=>{const c=logs4(m,d).length,q=mq(m,d);const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`}).join('')
-    h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''}</div><div class="cut">서부팀</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${dates.length>0?Math.round(ach/dates.length*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
+    const dots=dates.slice(-14).map(d=>{
+      const q=mq(m,d);
+      if(q===0) return `<span class="sd" style="background:transparent;border:0.5px solid var(--b3)" title="${d}:휴무"></span>`
+      const c=logs4(m,d).length;
+      const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)';
+      return `<span class="sd" style="background:${col}" title="${d}:${c}/${q}건"></span>`
+    }).join('')
+    h+=`<div class="cuc"><div class="cun">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''}</div><div class="cut">서부팀</div><div class="cus"><div class="cu"><div class="cuv">${total}</div><div class="cul">누적 TM</div></div><div class="cu"><div class="cuv">${ach}/${workDays}</div><div class="cul">달성일수</div></div><div class="cu"><div class="cuv">${workDays>0?Math.round(ach/workDays*100):0}%</div><div class="cul">달성률</div></div></div><div class="sw">${dots}</div></div>`
   })
   h+=`</div>`
 
@@ -994,14 +1040,15 @@ function openModal(ma,team){
   const date=CUR_DATE,logs=logs4(ma,date),q=mq(ma,date)
   const assigned=CACHE.db.filter(r=>r.assign1===ma||r.assign2===ma),isH=!isWorkday(date)
   
-  const isCustom = q !== 1 && q !== 3;
+  const isCustom = q !== 1 && q !== 3 && q !== 0;
 
   let h=`<div class="mot">${ma} — TM 기록</div>
-  <div class="mos">${fmtD(date)}${isH?` · <span style="color:var(--td)">${hName(date)||'주말/공휴일'}</span>`:''} · 할당량 ${q}건 · 현재 ${logs.length}건</div>
+  <div class="mos">${fmtD(date)}${isH?` · <span style="color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''} · ${q===0?'휴무/부재':'할당량 '+q+'건'} · 현재 ${logs.length}건</div>
   <div style="background:var(--bg2);border-radius:var(--r1);padding:9px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--t2)">오늘 내 할당량</span><div style="display:flex;gap:5px">
     <button id="mq1" class="qtb ${q===1?'on':''}" onclick="setMQModal(1)">1건</button>
     <button id="mq3" class="qtb ${q===3?'on':''}" onclick="setMQModal(3)">3건</button>
-    <button id="mqCustom" class="qtb ${isCustom?'on':''}" onclick="promptCustomMQModal()">${isCustom ? q+'건' : '4건+'}</button>
+    <button id="mqCustom" class="qtb ${isCustom?'on':''}" onclick="promptCustomMQModal()">${isCustom ? q+'건' : '입력'}</button>
+    <button id="mq0" class="qtb ${q===0?'on':''}" style="margin-left:4px;${q===0?'background:var(--bgd);color:var(--td);border-color:transparent':''}" onclick="setMQModal(0)">휴무</button>
   </div></div>`
   if(assigned.length>0){h+=`<div style="background:var(--bg2);border-radius:var(--r1);padding:9px 12px;margin-bottom:12px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">배정된 본사 (${assigned.length}건)</div><div style="display:flex;flex-wrap:wrap;gap:4px">${assigned.map(r=>`<span style="font-size:11px;padding:2px 7px;border-radius:99px;background:${r.assign2===ma?'var(--bgi)':'var(--bgs)'};color:${r.assign2===ma?'var(--ti)':'var(--ts)'}">${r.assign2===ma?'[2차] ':''}${r.name}(${r.branches})</span>`).join('')}</div></div>`}
   h+=`<div class="fs"><div class="fst">기본 정보</div>
@@ -1042,10 +1089,18 @@ async function setMQModal(v){
   document.getElementById('mq1').classList.toggle('on',v===1)
   document.getElementById('mq3').classList.toggle('on',v===3)
   const btnC = document.getElementById('mqCustom')
-  btnC.classList.toggle('on', v !== 1 && v !== 3)
-  btnC.textContent = (v !== 1 && v !== 3) ? v+'건' : '4건+'
+  if(btnC) {
+    btnC.classList.toggle('on', v !== 1 && v !== 3 && v !== 0)
+    btnC.textContent = (v !== 1 && v !== 3 && v !== 0) ? v+'건' : '입력'
+  }
+  const btn0 = document.getElementById('mq0')
+  if(btn0) {
+    btn0.classList.toggle('on', v===0)
+    btn0.style.background = v===0 ? 'var(--bgd)' : 'transparent'
+    btn0.style.color = v===0 ? 'var(--td)' : 'var(--t2)'
+  }
   
-  document.querySelector('.mos').textContent=`${fmtD(date)} · 할당량 ${v}건 · 현재 ${logs4(mMA,date).length}건`
+  document.querySelector('.mos').textContent=`${fmtD(date)} · ${v===0?'휴무/부재':'할당량 '+v+'건'} · 현재 ${logs4(mMA,date).length}건`
   reRenderActive()
 }
 
@@ -1130,7 +1185,6 @@ function renderStaff(){
       const st = MA_STATUS[m] || {status:'active',date:'',note:''}
       const stColor = st.status==='active'?'#1D9E75':st.status==='transferred'?'#BA7517':'#A32D2D'
       const stLabel = st.status==='active'?'재직중':st.status==='transferred'?'부서이동':'퇴직'
-      // 해당 MA의 추가상담 건수
       const followUpCount = CACHE.logs.filter(l=>l.ma_name===m&&l.consult_result==='추가상담').length
       const dbCount = CACHE.db.filter(r=>r.assign1===m||r.assign2===m).length
 
@@ -1163,7 +1217,6 @@ function renderStaff(){
     h+=`</tbody></table></div>`
   })
 
-  // PIN 관리 + 직원 추가 섹션 (관리자만)
   if(isAdmin()){
     const allMembers = [
       ...ADMIN_NAMES.map(n=>({name:n,role:'admin',team:null})),
@@ -1226,7 +1279,7 @@ function renderStaff(){
 }
 
 function onStaffStatusChange(ma){
-  // 상태 변경 시 UI 힌트만 (저장은 버튼 클릭)
+  // UI 힌트용
 }
 
 function saveStaffStatus(ma){
