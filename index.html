@@ -2,11 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TM 활동 관리 대시보드</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
 /* ── CSS 변수 ── */
 :root{
@@ -174,8 +177,17 @@ const SUPABASE_URL = 'https://zndbcmzquoaavsfojhhz.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZGJjbXpxdW9hYXZzZm9qaGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNTE5MzYsImV4cCI6MjA5NTkyNzkzNn0.5lI7H6QR5e-fJGBgQQu4Zwk4G_l3EZ4Dc8wM1cvokGs'
 // ════════════════════════════════════════════
 
-const { createClient } = supabase
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+// supabase 라이브러리 로드 대기
+let sb = null
+function initSupabase(){
+  if(typeof supabase === 'undefined'){
+    setTimeout(initSupabase, 100)
+    return
+  }
+  const { createClient } = supabase
+  sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+  loadAll().then(setupRealtime)
+}
 
 const EAST=['백현석','심재천','이동성','정승상','박재환','손혜령','권성은','김다진']
 const WEST=['임현묵','최용','조인호','박민국','강탄','우수민','조용준','장길평','박찬혜']
@@ -767,7 +779,8 @@ function setupRealtime(){
     .subscribe()
 }
 
-loadAll().then(setupRealtime)
+// loadAll은 initSupabase()에서 호출됨
+document.addEventListener("DOMContentLoaded", initSupabase)
 </script>
 </body>
 </html>
