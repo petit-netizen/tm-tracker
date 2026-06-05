@@ -1,0 +1,2046 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TM 활동 관리 대시보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+/* ── CSS 변수 ── */
+:root{
+  --bg1:#ffffff;--bg2:#f5f5f4;--bg3:#f0ede8;--bgi:#e6f1fb;--bgs:#eaf3de;--bgw:#faeeda;--bgd:#fcebeb;
+  --t1:#1a1a18;--t2:#6b6b67;--t3:#9c9c97;--ti:#185fa5;--ts:#3b6d11;--tw:#854f0b;--td:#a32d2d;
+  --b1:rgba(0,0,0,.4);--b2:rgba(0,0,0,.3);--b3:rgba(0,0,0,.15);--bi:#378add;
+  --r1:8px;--r2:12px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Noto Sans KR',sans-serif
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg1:#1e1e1c;--bg2:#2a2a28;--bg3:#242422;--bgi:#0c2540;--bgs:#162808;--bgw:#2a1800;--bgd:#280f0f;
+  --t1:#f0ede8;--t2:#a8a8a3;--t3:#6b6b67;--ti:#85b7eb;--ts:#97c459;--tw:#ef9f27;--td:#f09595;
+  --b1:rgba(255,255,255,.4);--b2:rgba(255,255,255,.3);--b3:rgba(255,255,255,.15)
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg3);color:var(--t1);min-height:100vh}
+.wrap{max-width:1120px;margin:0 auto;padding:1.5rem 1rem}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px}
+.pt{font-size:18px;font-weight:500}.ps{font-size:12px;color:var(--t2);margin-top:2px}
+.sync-status{font-size:11px;padding:4px 10px;border-radius:99px;border:0.5px solid var(--b3)}
+.sync-status.ok{background:var(--bgs);color:var(--ts)}.sync-status.err{background:var(--bgd);color:var(--td)}.sync-status.loading{background:var(--bg2);color:var(--t2)}
+.card{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:1.25rem 1.5rem}
+.tabs{display:flex;gap:5px;margin-bottom:1.25rem;flex-wrap:wrap}
+.tb{padding:7px 16px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:13px;cursor:pointer;color:var(--t2);font-family:var(--font);transition:all .15s}
+.tb:hover{background:var(--bg2)}.tb.active{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}
+.sec{display:none}.sec.active{display:block}
+.sr{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;margin-bottom:1.25rem}
+.sc{background:var(--bg2);border-radius:var(--r1);padding:11px 13px}
+.sl{font-size:11px;color:var(--t2);margin-bottom:3px}.sv{font-size:20px;font-weight:500;color:var(--t1)}
+.dn{display:flex;align-items:center;gap:8px;margin-bottom:1rem}
+.db{background:transparent;border:0.5px solid var(--b2);width:32px;height:32px;border-radius:var(--r1);cursor:pointer;font-size:18px;color:var(--t1);display:flex;align-items:center;justify-content:center;font-family:var(--font);user-select:none}
+.db:hover{background:var(--bg2)}.dl{font-size:14px;font-weight:500;color:var(--t1)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:9px;margin-bottom:1.25rem}
+.mc{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:11px 13px;cursor:pointer;transition:border-color .15s}
+.mc:hover{border-color:var(--b1)}.mc.done{border-left:3px solid #1D9E75}.mc.partial{border-left:3px solid #BA7517}.mc.none{border-left:3px solid var(--b3)}
+.mn{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:2px}
+.ms{font-size:11px;color:var(--t2);margin-bottom:6px}
+.pw{height:4px;background:var(--bg2);border-radius:99px;overflow:hidden;margin-bottom:4px}
+.pp{height:100%;border-radius:99px;transition:width .3s}.mp{font-size:11px;color:var(--t2);text-align:right;margin-bottom:6px}
+.qr{display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:0.5px solid var(--b3)}
+.ql{font-size:11px;color:var(--t2)}.qt{display:flex;gap:3px;align-items:center}
+.qtb{padding:2px 7px;font-size:11px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font)}
+.qtb.on{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}
+.ai{font-size:11px;color:var(--t2);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai.r2{color:var(--ti)}.stl{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:.75rem}
+/* 달력 */
+.cs{margin-bottom:1.5rem}.ch{display:flex;align-items:center;gap:8px;margin-bottom:.6rem}
+.ct{font-size:14px;font-weight:500;color:var(--t1)}
+.cg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.cg7{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cdw{text-align:center;font-size:10px;color:var(--t2);padding:3px 0;font-weight:500}
+.cl{border:0.5px solid var(--b3);border-radius:var(--r1);padding:5px 4px 4px;min-height:58px;cursor:pointer;transition:border-color .1s}
+.cl:hover{border-color:var(--b1)}.cl.empty{border-color:transparent;cursor:default}
+.cl.today{border-color:var(--bi)}.cl.sel{border-color:var(--bi);background:var(--bgi)}
+.cd{font-size:11px;font-weight:500;color:var(--t1);margin-bottom:3px}.cl.sel .cd{color:var(--ti)}
+.ctr{display:flex;flex-direction:column;gap:2px}
+.ctrow{display:flex;align-items:center;gap:3px}
+.ctd{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.ctl{font-size:9px;color:var(--t2);line-height:1}.cl.sel .ctl{color:var(--ti);opacity:.8}
+.ctv{font-size:9px;font-weight:500;line-height:1}
+.hl-lbl{font-size:9px;color:var(--td);margin-top:1px}
+.cl-leg{display:flex;gap:10px;font-size:10px;color:var(--t2);margin-top:5px;flex-wrap:wrap;align-items:center}
+.cl-leg span{display:inline-flex;align-items:center;gap:3px}
+.ds{width:5px;height:5px;border-radius:50%;display:inline-block}
+/* 패널·버튼 */
+.pn{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:1rem 1.25rem;margin-bottom:1rem}
+.pnt{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.75rem;display:flex;align-items:center;gap:6px}
+.ua{border:0.5px dashed var(--b2);border-radius:var(--r1);padding:1.2rem;text-align:center;cursor:pointer;margin-bottom:.75rem}
+.ua:hover{background:var(--bg2)}
+.dbtw{overflow-x:auto;margin-bottom:.75rem}
+.dbt{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.dbt th{text-align:left;padding:6px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500}
+.dbt td{padding:6px 8px;border-bottom:0.5px solid var(--b3);color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbt tr:last-child td{border-bottom:none}.dbt tr:hover td{background:var(--bg2)}
+.bdg{font-size:11px;padding:2px 8px;border-radius:99px;display:inline-block}
+.bdg.u{background:var(--bg2);color:var(--t2)}.bdg.a1{background:var(--bgs);color:var(--ts)}.bdg.a2,.bdg.r2{background:var(--bgi);color:var(--ti)}
+.btn{padding:7px 14px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:13px;cursor:pointer;color:var(--t2);font-family:var(--font)}
+.btn:hover{background:var(--bg2)}.btn.p{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}.btn.p:hover{opacity:.9}
+.btn.s{padding:4px 10px;font-size:11px}.btn.dng{color:var(--td);border-color:#f7c1c1}.btn.dng:hover{background:var(--bgd)}
+input,select,textarea{font-family:var(--font);font-size:13px;padding:6px 10px;border:0.5px solid var(--b2);border-radius:var(--r1);background:var(--bg1);color:var(--t1);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--bi)}
+.fr{display:flex;gap:6px;margin-bottom:.75rem;flex-wrap:wrap;align-items:center}
+.fr select,.fr input{font-size:13px;padding:5px 8px}
+
+/* 빠른 1행 입력폼 CSS */
+.q-row{display:flex;gap:6px;align-items:center;background:var(--bg2);padding:10px 12px;border-radius:var(--r1);overflow-x:auto}
+.q-row input,.q-row select{font-size:12px;padding:7px 9px;border:0.5px solid var(--b2);border-radius:4px;flex-shrink:0;background:var(--bg1);color:var(--t1)}
+.q-row input:focus,.q-row select:focus{border-color:var(--bi);outline:none}
+
+/* 모달 */
+.mov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:flex-start;justify-content:center;padding-top:2rem;overflow-y:auto}
+.mov.open{display:flex}
+.mo{background:var(--bg1);border-radius:var(--r2);border:0.5px solid var(--b3);padding:1.25rem;width:94%;max-width:560px;margin-bottom:2rem}
+.mot{font-size:15px;font-weight:500;color:var(--t1);margin-bottom:4px}
+.mos{font-size:12px;color:var(--t2);margin-bottom:1rem}
+.fs{background:var(--bg2);border-radius:var(--r1);padding:10px 12px;margin-bottom:10px}
+.fst{font-size:11px;font-weight:500;color:var(--t2);margin-bottom:8px;letter-spacing:.4px}
+.frow{margin-bottom:9px}.frow:last-child{margin-bottom:0}
+.flbl{font-size:12px;color:var(--t2);margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.req{color:var(--td);font-size:11px}
+.frow input,.frow select,.frow textarea{width:100%}
+.frow textarea{resize:vertical}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fa{display:flex;gap:6px;justify-content:flex-end;margin-top:.75rem}
+.lc{border:0.5px solid var(--b3);border-radius:var(--r1);padding:11px 13px;margin-bottom:8px}
+.lc.종결{border-left:3px solid #5F5E5A}.lc.추가상담{border-left:3px solid #185FA5}
+.lh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px}
+.lco{font-size:13px;font-weight:500;color:var(--t1)}
+.lb{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.pill{font-size:10px;padding:2px 8px;border-radius:99px;display:inline-block;white-space:nowrap}
+.pill.응답{background:var(--bgs);color:var(--ts)}.pill.부재{background:var(--bgw);color:var(--tw)}
+.pill.거절{background:var(--bgd);color:var(--td)}.pill.콜백요청{background:var(--bgi);color:var(--ti)}
+.pill.종결{background:var(--bg2);color:var(--t2)}.pill.추가상담{background:var(--bgi);color:var(--ti)}
+.lmg{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px}
+.lmi{font-size:11px;color:var(--t2)}.lmi strong{color:var(--t1);font-weight:500}
+.lcons{font-size:12px;color:var(--t1);background:var(--bg2);border-radius:var(--r1);padding:7px 9px;margin-bottom:5px;line-height:1.5;white-space:pre-wrap}
+.lap{font-size:11px;color:var(--ti);margin-top:3px}
+.del{background:none;border:none;cursor:pointer;color:var(--t2);font-size:13px;padding:1px 4px;font-family:var(--font)}
+.del:hover{color:var(--td)}
+/* 누적 */
+.cug{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:9px}
+.cuc{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:11px 13px}
+.cun{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:1px}
+.cut{font-size:11px;color:var(--t2);margin-bottom:7px}
+.cus{display:flex;gap:10px;margin-bottom:5px}.cu{text-align:center}
+.cuv{font-size:17px;font-weight:500;color:var(--t1)}.cul{font-size:10px;color:var(--t2)}
+.sd{width:7px;height:7px;border-radius:50%;display:inline-block}.sw{display:flex;flex-wrap:wrap;gap:2px}
+.t2nd{font-size:10px;background:var(--bgi);color:var(--ti);padding:1px 6px;border-radius:99px;margin-left:4px}
+/* 내 이름 선택 바 */
+.myma-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border-radius:var(--r1);padding:10px 14px;margin-bottom:1rem}
+.myma-label{font-size:13px;font-weight:500;color:var(--t1);white-space:nowrap}
+.myma-chips{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+.myma-chip{padding:5px 12px;border:0.5px solid var(--b2);border-radius:99px;background:var(--bg1);font-size:12px;cursor:pointer;color:var(--t2);font-family:var(--font);transition:all .12s}
+.myma-chip:hover{background:var(--bgi);color:var(--ti)}
+.myma-chip.on{background:var(--ti);color:#fff;border-color:transparent;font-weight:600}
+.myma-clear{font-size:11px;padding:4px 10px;border:0.5px solid var(--b2);border-radius:99px;background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font);white-space:nowrap}
+.myma-clear:hover{background:var(--bgd);color:var(--td)}
+/* 월 선택 */
+.mon-sel{display:flex;gap:6px;margin-bottom:1.25rem;flex-wrap:wrap}
+.mon-btn{padding:7px 16px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:13px;cursor:pointer;color:var(--t2);font-family:var(--font)}
+.mon-btn:hover{background:var(--bg2)}
+.mon-btn.on{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}
+/* 일자별 막대 그래프 */
+.chart-wrap{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:1.25rem 1.5rem;margin-bottom:1.25rem}
+.chart-title{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.chart-legend{display:flex;gap:14px;font-size:11px;color:var(--t2)}
+.chart-legend span{display:inline-flex;align-items:center;gap:4px}
+.lgd-box{width:10px;height:10px;border-radius:2px;display:inline-block}
+.bars{display:flex;align-items:flex-end;gap:3px;height:200px;padding:0 0 4px;overflow-x:auto;border-bottom:1px solid var(--b3)}
+.bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:26px;flex:1;height:100%;position:relative}
+.bar-stack{display:flex;flex-direction:column-reverse;width:18px;height:calc(100% - 18px);justify-content:flex-start}
+.bar-seg{width:100%;border-radius:2px 2px 0 0;transition:height .3s;min-height:0}
+.bar-val{font-size:9px;color:var(--t1);font-weight:600;margin-bottom:2px;height:14px;line-height:14px}
+.bar-lbl{font-size:9px;color:var(--t2);margin-top:3px;white-space:nowrap}
+.bar-lbl.sun{color:#A32D2D}.bar-lbl.sat{color:#185FA5}
+.bar-col:hover .bar-seg{opacity:.8}
+.chart-empty{text-align:center;padding:2rem;color:var(--t2);font-size:13px}
+.chart-summary{display:flex;gap:18px;margin-top:12px;font-size:12px;flex-wrap:wrap}
+.chart-summary b{color:var(--t1);font-weight:600;font-size:15px}
+.chart-summary .lbl{color:var(--t2);display:block;font-size:11px;margin-top:1px}
+/* TM내역 */
+.tlw{overflow-x:auto;max-height:520px;overflow-y:auto;border:0.5px solid var(--b3);border-radius:var(--r1)}
+.tlt{width:100%;border-collapse:collapse;font-size:12px;min-width:960px}
+.tlt th{text-align:left;padding:7px 9px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;white-space:nowrap;position:sticky;top:0;background:var(--bg1);z-index:1}
+.tlt td{padding:7px 9px;border-bottom:0.5px solid var(--b3);vertical-align:top;font-size:12px}
+.tlt tr:last-child td{border-bottom:none}.tlt tr:hover td{background:var(--bg2)}
+.hl{background:#fff3cd;border-radius:2px;padding:0 1px;color:#000}
+.sb{position:relative;flex:1;min-width:200px;max-width:340px}
+.sb input{width:100%;padding-left:32px}.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--t2);font-size:15px;pointer-events:none}
+.kwc{font-size:11px;color:var(--ti);background:var(--bgi);padding:2px 8px;border-radius:99px;margin-left:6px}
+.hbanner{background:var(--bgd);border-radius:var(--r1);padding:10px 14px;font-size:13px;color:var(--td);margin-bottom:1rem}
+/* 인증 */
+.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center}
+.auth-box{background:var(--bg1);border:0.5px solid var(--b3);border-radius:var(--r2);padding:1.5rem;width:92%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.auth-title{font-size:15px;font-weight:500;color:var(--t1);margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--t2);margin-bottom:1rem}
+.auth-tabs{display:flex;gap:4px;margin-bottom:1rem}
+.auth-tab{flex:1;padding:6px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:12px;cursor:pointer;color:var(--t2);font-family:var(--font);text-align:center}
+.auth-tab.on{background:var(--bgi);color:var(--ti);border-color:transparent;font-weight:500}
+.badge-role{font-size:10px;padding:2px 8px;border-radius:99px;display:inline-block}
+.badge-role.admin{background:var(--bgi);color:var(--ti)}
+.badge-role.ma{background:var(--bg2);color:var(--t2)}
+.user-info-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);padding:6px 10px;background:var(--bg2);border-radius:99px}
+.lock-btn{font-size:11px;padding:3px 10px;border:0.5px solid var(--b2);border-radius:99px;background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font)}
+.lock-btn:hover{background:var(--bgd);color:var(--td)}
+.masked{color:var(--b3);font-size:11px;font-style:italic;user-select:none}
+</style>
+</head>
+<body>
+<!-- 앱 시작 -->
+
+<!-- 모바일 감지 배너 -->
+<div id="mobile-banner" style="display:none;background:var(--ti);color:#fff;padding:11px 16px;text-align:center;position:sticky;top:0;z-index:9999">
+  <div style="font-size:13px;margin-bottom:8px">📱 모바일에서 접속하셨어요! 입력에 최적화된 화면을 사용해보세요.</div>
+  <div style="display:flex;gap:8px;justify-content:center">
+    <a href="mobile.html" style="background:#fff;color:var(--ti);padding:7px 16px;border-radius:99px;text-decoration:none;font-weight:700;font-size:13px">모바일 입력 화면으로 →</a>
+    <button onclick="document.getElementById('mobile-banner').style.display='none';localStorage.setItem('hide_mob','1')"
+      style="background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:7px 12px;border-radius:99px;font-size:12px;cursor:pointer;font-family:var(--font)">PC버전 보기</button>
+  </div>
+</div>
+<script>
+(function(){
+  var isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  if(isMobile && !localStorage.getItem('hide_mob'))
+    document.getElementById('mobile-banner').style.display='block'
+})()
+</script>
+
+<div class="wrap">
+  <div class="ph">
+    <div><div class="pt">TM 활동 관리 대시보드</div><div class="ps">동부팀 8명 · 서부팀 9명</div></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div id="auth-bar"></div>
+      <div id="sync-badge" class="sync-status loading">연결 중...</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <button class="tb active" onclick="showTab('all')">전체</button>
+      <button class="tb" onclick="showTab('east')">동부팀</button>
+      <button class="tb" onclick="showTab('west')">서부팀</button>
+      <button class="tb" onclick="showTab('cum')">누적 현황</button>
+      <button class="tb" onclick="showTab('tmlog')">TM 내역</button>
+      <button class="tb" onclick="showTab('staff')">인력관리</button>
+      <button class="tb" onclick="showTab('db')">DB관리</button>
+    </div>
+    <div id="tab-all" class="sec active"></div>
+    <div id="tab-east" class="sec"></div>
+    <div id="tab-west" class="sec"></div>
+    <div id="tab-cum" class="sec"></div>
+    <div id="tab-tmlog" class="sec"></div>
+    <div id="tab-staff" class="sec"></div>
+    <div id="tab-db" class="sec"></div>
+  </div>
+</div>
+<div class="mov" id="mov" onclick="closeModalBg(event)">
+  <div class="mo" id="moc"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  ★ 여기만 수정하세요 ★
+// ════════════════════════════════════════════
+const SUPABASE_URL = 'https://zndbcmzquoaavsfojhhz.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZGJjbXpxdW9hYXZzZm9qaGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNTE5MzYsImV4cCI6MjA5NTkyNzkzNn0.5lI7H6QR5e-fJGBgQQu4Zwk4G_l3EZ4Dc8wM1cvokGs'
+
+// ★ 관리자 공통 PIN — 원하는 숫자/문자로 변경하세요 ★
+const ADMIN_PIN = '2580'
+// ════════════════════════════════════════════
+
+// ── 권한 시스템 ──
+// - 첫 화면/TM 기록: 누구나 접근 가능
+// - TM 내역 탭: 이름 선택만으로 본인 내역 조회 (MA)
+//              관리자 PIN 입력 시 전체 열람
+// - 인력관리/DB관리 탭: 관리자 PIN 필요
+
+const ADMIN_NAMES = ['동부팀장','서부팀장','사업부장','사업부지원팀장']
+let CURRENT_USER = null  // null | { name, role:'admin'|'ma' }
+let AUTH_CALLBACK = null
+
+function isAdmin(){ return CURRENT_USER?.role === 'admin' }
+function isMe(ma){ return CURRENT_USER?.name === ma }
+function canViewFull(ma){ return isAdmin() || isMe(ma) }
+function isLoggedIn(){ return CURRENT_USER !== null }
+
+// 인증 모달 열기
+function requireAuth(reason, cb, mode='ma'){
+  AUTH_CALLBACK = cb
+  renderAuthModal(reason, mode)
+}
+
+function renderAuthModal(reason, mode){
+  if(!mode) mode = 'ma'
+  const overlay = document.createElement('div')
+  overlay.className = 'auth-overlay'
+  overlay.id = 'auth-overlay'
+
+  const eastOpts = EAST.map(function(m){ return '<option>'+m+'</option>' }).join('')
+  const westOpts = WEST.map(function(m){ return '<option>'+m+'</option>' }).join('')
+
+  const maForm = '<div style="margin-bottom:10px">'
+    + '<label style="font-size:12px;color:var(--t2);display:block;margin-bottom:4px">이름 선택</label>'
+    + '<select id="auth-name" style="width:100%;font-size:13px;padding:8px 10px;border:0.5px solid var(--b2);border-radius:var(--r1);background:var(--bg1);color:var(--t1)">'
+    + '<option value="">-- 이름을 선택하세요 --</option>'
+    + '<optgroup label="동부팀">' + eastOpts + '</optgroup>'
+    + '<optgroup label="서부팀">' + westOpts + '</optgroup>'
+    + '</select></div>'
+    + '<div style="font-size:11px;color:var(--t2);background:var(--bg2);border-radius:var(--r1);padding:8px 10px;margin-bottom:10px">'
+    + '이름을 선택하면 <strong>본인이 작성한 TM 내역만</strong> 표시됩니다.<br>'
+    + '전체 열람이 필요하면 관리자에게 문의하세요.</div>'
+
+  const adminForm = '<div style="margin-bottom:10px">'
+    + '<label style="font-size:12px;color:var(--t2);display:block;margin-bottom:4px">관리자 공통 PIN</label>'
+    + '<input type="password" id="auth-admin-pin" placeholder="PIN 입력"'
+    + ' style="width:100%;font-size:14px;padding:9px 12px;border:0.5px solid var(--b2);border-radius:var(--r1);background:var(--bg1);color:var(--t1)"'
+    + ' id="auth-admin-pin-input" /></div>'
+
+  const title = mode === 'admin' ? '🔐 관리자 인증' : '📋 내 TM 내역 조회'
+  const btnLabel = mode === 'admin' ? '관리자 로그인' : '조회하기'
+  const onClickLogin = mode === 'admin' ? "doAuthLogin('admin')" : "doAuthLogin('ma')"
+
+  overlay.innerHTML = '<div class="auth-box">'
+    + '<div class="auth-title">' + title + '</div>'
+    + '<div class="auth-sub" style="margin-bottom:1rem">' + (reason||'') + '</div>'
+    + (mode === 'ma' ? maForm : adminForm)
+    + '<div id="auth-err" style="font-size:12px;color:var(--td);min-height:16px;margin-bottom:10px;text-align:center"></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button onclick="closeAuthModal()" style="flex:1;padding:9px;border:0.5px solid var(--b2);border-radius:var(--r1);background:transparent;font-size:13px;cursor:pointer;color:var(--t2);font-family:var(--font)">취소</button>'
+    + '<button onclick="' + onClickLogin + '" style="flex:2;padding:9px;background:var(--bgi);color:var(--ti);border:none;border-radius:var(--r1);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font)">' + btnLabel + '</button>'
+    + '</div></div>'
+
+  document.body.appendChild(overlay)
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) closeAuthModal() })
+  var pinInput = document.getElementById('auth-admin-pin')
+  if(pinInput) pinInput.addEventListener('keydown', function(e){ if(e.key==='Enter') doAuthLogin('admin') })
+  var maSelect = document.getElementById('auth-name')
+  if(maSelect) maSelect.addEventListener('keydown', function(e){ if(e.key==='Enter') doAuthLogin('ma') })
+}
+
+function doAuthLogin(mode='ma'){
+  const err = document.getElementById('auth-err')
+  if(mode==='admin'){
+    const pin = document.getElementById('auth-admin-pin')?.value.trim()
+    if(!pin){ err.textContent='PIN을 입력해주세요.'; return }
+    if(pin !== ADMIN_PIN){ err.textContent='PIN이 올바르지 않습니다.'; return }
+    CURRENT_USER = { name:'관리자', role:'admin' }
+    closeAuthModal()
+    updateAuthBar()
+    if(AUTH_CALLBACK){ AUTH_CALLBACK(); AUTH_CALLBACK=null }
+  } else {
+    const name = document.getElementById('auth-name')?.value
+    if(!name){ err.textContent='이름을 선택해주세요.'; return }
+    CURRENT_USER = { name, role:'ma', team: EAST.includes(name)?'east':'west' }
+    closeAuthModal()
+    updateAuthBar()
+    if(AUTH_CALLBACK){ AUTH_CALLBACK(); AUTH_CALLBACK=null }
+  }
+}
+
+async function doAdminLogin(){ doAuthLogin('admin') }
+
+function closeAuthModal(){
+  const el = document.getElementById('auth-overlay')
+  if(el) el.remove()
+}
+
+function updateAuthBar(){
+  const bar = document.getElementById('auth-bar')
+  if(!bar) return
+  if(!CURRENT_USER){
+    bar.innerHTML=`<button onclick="requireAuth('이름을 선택하면 내 TM 내역을 볼 수 있습니다.',()=>showTab('tmlog'),'ma')"
+      style="font-size:11px;padding:4px 12px;border:0.5px solid var(--b2);border-radius:99px;background:transparent;cursor:pointer;color:var(--t2);font-family:var(--font)">
+      TM 내역 조회
+    </button>`
+    return
+  }
+  const isAdm = CURRENT_USER.role==='admin'
+  bar.innerHTML=`<div class="user-info-bar">
+    <span style="font-weight:500;color:var(--t1)">${CURRENT_USER.name}</span>
+    <span class="badge-role ${isAdm?'admin':'ma'}">${isAdm?'전체열람':'내TM'}</span>
+    <button class="lock-btn" onclick="doLogout()">✕ 나가기</button>
+  </div>`
+}
+
+function doLogout(){
+  CURRENT_USER = null
+  AUTH_CALLBACK = null
+  updateAuthBar()
+  reRenderActive()
+}
+
+function applyCampaignStart(){
+  const val = document.getElementById('campaign-start-input')?.value
+  const msg = document.getElementById('campaign-msg')
+  if(!val){ if(msg){msg.style.color='var(--td)';msg.textContent='날짜를 선택해주세요.'} return }
+  setCampaignStart(val)
+  if(msg){ msg.style.color='var(--ts)'; msg.textContent='✓ 적용됨 ('+val+' 이하 캠페인 외)' }
+  reRenderActive()
+}
+
+function addCustomOffDay(){
+  const val = document.getElementById('custom-off-input')?.value
+  if(!val){ alert('휴무로 지정할 날짜를 선택해주세요.'); return }
+  addCustomOff(val)
+  document.getElementById('custom-off-input').value=''
+  renderCustomOffList()
+  reRenderActive()
+}
+
+function delCustomOffDay(ds){
+  if(!confirm(ds+' 휴무 지정을 해제하시겠습니까?')) return
+  removeCustomOff(ds)
+  renderCustomOffList()
+  reRenderActive()
+}
+
+function renderCustomOffList(){
+  const box = document.getElementById('custom-off-list')
+  if(!box) return
+  const days = [...CUSTOM_OFF_DAYS].sort()
+  if(!days.length){
+    box.innerHTML = '<div style="font-size:11px;color:var(--t2)">지정된 개별 휴무일이 없습니다.</div>'
+    return
+  }
+  const wk=['일','월','화','수','목','금','토']
+  box.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">' + days.map(function(d){
+    const dt=new Date(d+'T00:00:00')
+    const label=(dt.getMonth()+1)+'/'+dt.getDate()+'('+wk[dt.getDay()]+')'
+    return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--bgd);color:var(--td);padding:4px 10px;border-radius:99px">'
+      + label + '<button onclick="delCustomOffDay(&apos;'+d+'&apos;)" style="background:none;border:none;color:var(--td);cursor:pointer;font-size:13px;padding:0;line-height:1">✕</button></span>'
+  }).join('') + '</div>'
+}
+
+async function addNewMember(){
+  const name = document.getElementById('new-ma-name')?.value.trim()
+  const team = document.getElementById('new-ma-team')?.value
+  const msg  = document.getElementById('new-ma-msg')
+  if(!name){ msg.style.color='var(--td)'; msg.textContent='이름을 입력해주세요.'; return }
+  // 현재 구조는 공통 PIN을 사용하므로 개별 PIN 등록이 필요 없습니다.
+  // 신규 직원은 코드의 EAST/WEST 배열에 이름을 추가하면 달력·현황에 반영됩니다.
+  msg.style.color='var(--ts)'
+  msg.textContent='신규 직원 "'+name+'" ('+(team==='east'?'동부팀':'서부팀')+') — 달력/현황 반영은 코드의 EAST/WEST 배열에 이름을 추가해주세요. (관리자 PIN은 공통 사용)'
+  document.getElementById('new-ma-name').value=''
+}
+
+let sb = null
+
+const EAST=['백현석','심재천','이동성','정승상','박재환','손혜령','권성은','김다진']
+const WEST=['임현묵','최용','조인호','박민국','강탄','우수민','조용준','장길평','박찬혜']
+const ALL_MA=EAST.map(m=>({m,team:'east'})).concat(WEST.map(m=>({m,team:'west'})))
+
+let MA_STATUS = {}
+function getMaStatus(ma){ return MA_STATUS[ma]?.status || 'active' }
+function isActiveMa(ma){ return getMaStatus(ma) === 'active' }
+function loadMaStatus(){ try{ const s=localStorage.getItem('ma_status_v1'); if(s) MA_STATUS=JSON.parse(s); }catch(e){} }
+function saveMaStatus(){ try{ localStorage.setItem('ma_status_v1', JSON.stringify(MA_STATUS)); }catch(e){} }
+
+const KR_HOLIDAYS=new Set([
+  // 2025
+  '2025-01-01','2025-01-28','2025-01-29','2025-01-30','2025-03-01','2025-05-05','2025-05-06',
+  '2025-06-06','2025-08-15','2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25',
+  // 2026 (제헌절 7/17 재지정, 6/2 마감, 6/3 선거)
+  '2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-01','2026-03-02',
+  '2026-05-05','2026-05-24','2026-05-25','2026-06-02','2026-06-03','2026-06-06',
+  '2026-07-17','2026-08-15','2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-09','2026-12-25',
+  // 2027
+  '2027-01-01','2027-02-05','2027-02-06','2027-02-07','2027-02-08','2027-03-01',
+  '2027-05-05','2027-05-13','2027-06-06','2027-07-17','2027-08-15','2027-08-16',
+  '2027-09-21','2027-09-22','2027-09-23','2027-10-03','2027-10-04','2027-10-09','2027-12-25',
+  // 2028
+  '2028-01-01','2028-01-25','2028-01-26','2028-01-27','2028-03-01','2028-05-02','2028-05-05',
+  '2028-06-06','2028-07-17','2028-08-15','2028-10-02','2028-10-03','2028-10-04','2028-10-09','2028-12-25',
+  // 2029
+  '2029-01-01','2029-02-12','2029-02-13','2029-02-14','2029-03-01','2029-05-05','2029-05-07',
+  '2029-05-20','2029-05-21','2029-06-06','2029-07-17','2029-08-15','2029-09-21','2029-09-22','2029-09-23','2029-09-24',
+  '2029-10-03','2029-10-09','2029-12-25',
+  // 2030
+  '2030-01-01','2030-02-02','2030-02-03','2030-02-04','2030-02-05','2030-03-01','2030-05-05','2030-05-06',
+  '2030-05-09','2030-06-06','2030-07-17','2030-08-15','2030-09-11','2030-09-12','2030-09-13','2030-10-03','2030-10-09','2030-12-25',
+])
+const HNAMES={
+  // 2025
+  '2025-01-01':'신정','2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴','2025-03-01':'삼일절',
+  '2025-05-05':'어린이날·부처님오신날','2025-05-06':'대체공휴일','2025-06-06':'현충일','2025-08-15':'광복절',
+  '2025-10-03':'개천절','2025-10-05':'추석연휴','2025-10-06':'추석','2025-10-07':'추석연휴','2025-10-08':'추석대체공휴일','2025-10-09':'한글날','2025-12-25':'크리스마스',
+  // 2026
+  '2026-01-01':'신정','2026-02-16':'설날연휴','2026-02-17':'설날','2026-02-18':'설날연휴','2026-03-01':'삼일절','2026-03-02':'삼일절대체공휴일',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-05-25':'부처님오신날대체공휴일','2026-06-02':'업무마감','2026-06-03':'지방선거일','2026-06-06':'현충일',
+  '2026-07-17':'제헌절','2026-08-15':'광복절','2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴','2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
+  // 2027
+  '2027-01-01':'신정','2027-02-05':'설날연휴','2027-02-06':'설날','2027-02-07':'설날연휴','2027-02-08':'설날대체공휴일','2027-03-01':'삼일절',
+  '2027-05-05':'어린이날','2027-05-13':'부처님오신날','2027-06-06':'현충일','2027-07-17':'제헌절','2027-08-15':'광복절','2027-08-16':'광복절대체공휴일',
+  '2027-09-21':'추석연휴','2027-09-22':'추석','2027-09-23':'추석연휴','2027-10-03':'개천절','2027-10-04':'개천절대체공휴일','2027-10-09':'한글날','2027-12-25':'크리스마스',
+  // 2028
+  '2028-01-01':'신정','2028-01-25':'설날연휴','2028-01-26':'설날','2028-01-27':'설날연휴','2028-03-01':'삼일절','2028-05-02':'부처님오신날','2028-05-05':'어린이날',
+  '2028-06-06':'현충일','2028-07-17':'제헌절','2028-08-15':'광복절','2028-10-02':'추석연휴','2028-10-03':'추석·개천절','2028-10-04':'추석연휴','2028-10-09':'한글날','2028-12-25':'크리스마스',
+  // 2029
+  '2029-01-01':'신정','2029-02-12':'설날연휴','2029-02-13':'설날','2029-02-14':'설날연휴','2029-03-01':'삼일절','2029-05-05':'어린이날','2029-05-07':'어린이날대체공휴일',
+  '2029-05-20':'부처님오신날','2029-05-21':'부처님오신날대체공휴일','2029-06-06':'현충일','2029-07-17':'제헌절','2029-08-15':'광복절','2029-09-21':'추석연휴','2029-09-22':'추석','2029-09-23':'추석연휴','2029-09-24':'추석대체공휴일',
+  '2029-10-03':'개천절','2029-10-09':'한글날','2029-12-25':'크리스마스',
+  // 2030
+  '2030-01-01':'신정','2030-02-02':'설날연휴','2030-02-03':'설날','2030-02-04':'설날연휴','2030-02-05':'설날대체공휴일','2030-03-01':'삼일절','2030-05-05':'어린이날','2030-05-06':'어린이날대체공휴일',
+  '2030-05-09':'부처님오신날','2030-06-06':'현충일','2030-07-17':'제헌절','2030-08-15':'광복절','2030-09-11':'추석연휴','2030-09-12':'추석','2030-09-13':'추석연휴','2030-10-03':'개천절','2030-10-09':'한글날','2030-12-25':'크리스마스',
+}
+
+// 캠페인 시작일: 이 날짜 "이하"는 모두 '캠페인 일정아님' 처리
+// 관리자가 인력관리 탭에서 변경 가능 (localStorage 저장), 기본 2026-06-05
+let CAMPAIGN_START = (function(){
+  try{ return localStorage.getItem('campaign_start') || '2026-06-05' }
+  catch(e){ return '2026-06-05' }
+})()
+function setCampaignStart(ds){
+  CAMPAIGN_START = ds
+  try{ localStorage.setItem('campaign_start', ds) }catch(e){}
+}
+
+// 개별 휴무일 (캠페인 기간 중 특정 날짜를 쉬는 날로 지정) — 전사 공통 휴무
+let CUSTOM_OFF_DAYS = (function(){
+  try{ return JSON.parse(localStorage.getItem('custom_off_days')||'[]') }
+  catch(e){ return [] }
+})()
+function isCustomOff(ds){ return CUSTOM_OFF_DAYS.indexOf(ds) >= 0 }
+function addCustomOff(ds){
+  if(!isCustomOff(ds)){ CUSTOM_OFF_DAYS.push(ds); _saveCustomOff() }
+}
+function removeCustomOff(ds){
+  CUSTOM_OFF_DAYS = CUSTOM_OFF_DAYS.filter(function(x){return x!==ds})
+  _saveCustomOff()
+}
+function _saveCustomOff(){
+  try{ localStorage.setItem('custom_off_days', JSON.stringify(CUSTOM_OFF_DAYS)) }catch(e){}
+}
+function isWorkday(ds){
+  if(ds <= CAMPAIGN_START) return false;
+  if(isCustomOff(ds)) return false;
+  const dt=new Date(ds+'T00:00:00'),d=dt.getDay();
+  return d!==0&&d!==6&&!KR_HOLIDAYS.has(ds)
+}
+
+// ── 이월 TM 계산 ──────────────────────────────
+// 해당 MA가 targetDate에 수행해야 할 TM처 목록
+// = 오늘 배정된 거래처 + 과거 미수행 이월분
+function getAssignedForDate(ma, targetDate){
+  // 이 MA의 1차 배정 거래처 전체 (TM대상)
+  const allAssigned = CACHE.db.filter(r=>r.assign1===ma && r.is_target!==false)
+  if(!allAssigned.length) return { today:[], carryover:[], total:[] }
+
+  // 캠페인 시작일 다음날~targetDate까지의 근무일
+  const workdays = _workdaysBetween(CAMPAIGN_START, targetDate)
+
+  // 각 근무일에 배정됐어야 할 거래처 계산 (라운드로빈 순환)
+  // 단, 이미 TM 기록이 있는 거래처는 '수행 완료'로 처리
+  const performed = new Set(
+    CACHE.logs
+      .filter(l=>l.ma_name===ma)
+      .map(l=>l.company)
+  )
+
+  // 오늘 해야 할 TM처: 미수행 이월분 + 오늘치 신규
+  // 이월: targetDate 이전 근무일에 배정됐으나 미수행인 거래처
+  const todayIdx = workdays.indexOf(targetDate)
+  if(todayIdx < 0) return { today:[], carryover:[], total:[] }
+
+  const carryover = []
+  for(let i=0; i<todayIdx; i++){
+    const wd = workdays[i]
+    const assigned = _getDbForWorkday(allAssigned, i)
+    if(assigned && !performed.has(assigned.name)){
+      carryover.push({...assigned, _dueDate: wd})
+    }
+  }
+
+  // 오늘치 신규 배정
+  const todayDb = _getDbForWorkday(allAssigned, todayIdx)
+  const today = todayDb ? [todayDb] : []
+
+  // 중복 제거 (이월에 오늘치 같은 거래처가 있으면 한 번만)
+  const carryoverNames = new Set(carryover.map(r=>r.name))
+  const todayFinal = today.filter(r=>!carryoverNames.has(r.name))
+
+  const total = carryover.concat(todayFinal)
+  return { today: todayFinal, carryover, total }
+}
+
+// 근무일 배열에서 i번째 날에 해당하는 거래처 (라운드로빈)
+function _getDbForWorkday(dbList, dayIndex){
+  if(!dbList.length) return null
+  // 가맹점 많은 순 정렬 유지
+  const sorted = [...dbList].sort((a,b)=>b.branches-a.branches)
+  return sorted[dayIndex % sorted.length]
+}
+
+// CAMPAIGN_START 다음날~endDate까지의 근무일 배열
+function _workdaysBetween(startExcl, endIncl){
+  const arr=[]
+  const parts=startExcl.split('-').map(Number)
+  const d=new Date(parts[0],parts[1]-1,parts[2])
+  d.setDate(d.getDate()+1)  // startExcl 다음날부터
+  const end=new Date(endIncl+'T00:00:00')
+  while(d<=end){
+    const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+    if(isWorkday(ds)) arr.push(ds)
+    d.setDate(d.getDate()+1)
+  }
+  return arr
+}
+function hName(ds){
+  if(HNAMES[ds]) return HNAMES[ds];
+  if(isCustomOff(ds)){
+    const dt=new Date(ds+'T00:00:00'),d=dt.getDay();
+    if(d!==0 && d!==6) return '휴무일(지정)';
+  }
+  if(ds <= CAMPAIGN_START) {
+    const dt=new Date(ds+'T00:00:00'),d=dt.getDay();
+    if(d!==0 && d!==6) return '캠페인 일정아님';
+  }
+  return null;
+}
+
+// ── 핵심 유틸 함수 (변수 선언 전에 위치) ──
+function td(){return new Date().toISOString().slice(0,10)}
+function mo(d){return d.slice(0,7)}
+
+// ── 캐시 (매 페이지에서 DB 재조회 최소화) ──
+let CACHE = { logs: [], quotas: [], db: [], loaded: false }
+let CUR_DATE = td()
+let CAL_MONTH = { all: mo(td()), east: mo(td()), west: mo(td()) }
+function fmtD(d){const dt=new Date(d+'T00:00:00');return `${dt.getMonth()+1}월 ${dt.getDate()}일 (${['일','월','화','수','목','금','토'][dt.getDay()]})`}
+function fmtM(ym){const[y,m]=ym.split('-');return `${y}년 ${parseInt(m)}월`}
+
+function setSyncBadge(state, msg){
+  const el=document.getElementById('sync-badge')
+  el.className='sync-status '+state
+  el.textContent=msg
+}
+
+// ── Supabase 데이터 로드 ──
+async function loadAll(){
+  setSyncBadge('loading','불러오는 중...')
+  try{
+    const [logsRes, quotasRes, dbRes] = await Promise.all([
+      sb.from('tm_logs').select('*').order('log_date',{ascending:false}),
+      sb.from('ma_quotas').select('*'),
+      sb.from('company_db').select('*').order('branches',{ascending:false})
+    ])
+    if(logsRes.error||quotasRes.error||dbRes.error) throw new Error('조회 오류')
+    CACHE.logs = logsRes.data || []
+    CACHE.quotas = quotasRes.data || []
+    CACHE.db = dbRes.data || []
+    CACHE.loaded = true
+    setSyncBadge('ok','✓ 연결됨')
+    reRenderActive()
+  }catch(e){
+    setSyncBadge('err','⚠ 연결 실패 — Supabase Key를 확인하세요')
+    console.error(e)
+    reRenderActive()  // 실패해도 UI는 표시
+  }
+}
+
+function reRenderActive(){
+  const active=document.querySelector('.tb.active')?.textContent
+  if(active==='전체')renderAll()
+  else if(active==='동부팀')renderTeam('east')
+  else if(active==='서부팀')renderTeam('west')
+  else if(active==='누적 현황')renderCum()
+  else if(active==='TM 내역')renderTMLog()
+  else if(active==='인력관리')renderStaff()
+  else if(active==='DB관리')renderDBTab()
+}
+
+// ── 캐시 헬퍼 ──
+function logs4(ma,date){return CACHE.logs.filter(l=>l.ma_name===ma&&l.log_date===date)}
+// 휴무일 경우 할당량을 0으로 반환
+function mq(ma,date){
+  // 명시적으로 저장된 할당량(휴무=0 포함) 우선
+  const stored=CACHE.quotas.find(q=>q.ma_name===ma&&q.quota_date===date)
+  if(stored) return stored.quota   // 0(휴무)도 그대로 반환
+
+  // 저장된 값이 없으면: 기본 1 + 미수행 이월 건수
+  if(!CACHE.loaded) return 1
+  const {carryover} = getAssignedForDate(ma, date)
+  return 1 + carryover.length  // 기본 1건 + 이월 미수행 건수
+}
+function teamMembers(t){return t==='east'?EAST:WEST}
+function tdAch(team,date){return teamMembers(team).filter(m=>{const q=mq(m,date);return q>0&&logs4(m,date).length>=q}).length}
+function tdTot(team,date){return teamMembers(team).filter(m=>mq(m,date)>0).length}
+
+function showTab(t){
+  document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff','db'][i]===t))
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+  document.getElementById('tab-'+t).classList.add('active')
+  if(t==='all')renderAll()
+  if(t==='east')renderTeam('east')
+  if(t==='west')renderTeam('west')
+  if(t==='cum')renderCum()
+  if(t==='tmlog'){
+    if(!isLoggedIn()){
+      // 미인증 → MA 이름 선택 모달
+      requireAuth('이름을 선택하면 내가 작성한 TM 내역을 볼 수 있습니다.', ()=>showTab('tmlog'), 'ma')
+      document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff','db'][i]==='all'))
+      document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+      document.getElementById('tab-all').classList.add('active')
+      return
+    }
+    renderTMLog()
+  }
+  if(t==='staff'){
+    if(!isAdmin()){
+      // 미인증 또는 MA → 관리자 PIN 모달
+      requireAuth('인력관리는 관리자 PIN이 필요합니다.', ()=>showTab('staff'), 'admin')
+      document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff','db'][i]==='all'))
+      document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+      document.getElementById('tab-all').classList.add('active')
+      return
+    }
+    renderStaff()
+  }
+  if(t==='db'){
+    if(!isAdmin()){
+      requireAuth('DB관리는 관리자 PIN이 필요합니다.', ()=>showTab('db'), 'admin')
+      document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',['all','east','west','cum','tmlog','staff','db'][i]==='all'))
+      document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'))
+      document.getElementById('tab-all').classList.add('active')
+      return
+    }
+    renderDBTab()
+  }
+}
+
+// ── 달력 HTML ──
+function calHtml(team,selDate){
+  if(!CAL_MONTH||!CAL_MONTH[team]){if(!CAL_MONTH)CAL_MONTH={all:mo(td()),east:mo(td()),west:mo(td())};else CAL_MONTH[team]=mo(td());}
+  const ym=CAL_MONTH[team],[yr,mo2]=ym.split('-').map(Number)
+  const dim=new Date(yr,mo2,0).getDate(),today=td()
+  // 1일의 요일 (0=일 ~ 6=토) → 월 기준 offset (월=0)
+  const firstDow=new Date(yr,mo2-1,1).getDay() // 0=일,1=월,...,6=토
+  const offsetMon=firstDow    // 일요일 기준 앞 빈칸 수 (일=0,월=1,...,토=6)
+  const workdayCount=[...Array(dim)].filter((_,i)=>{
+    const ds=`${yr}-${String(mo2).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`
+    return isWorkday(ds)
+  }).length
+  let h=`<div class="cs"><div class="ch">
+    <button class="db" onclick="chgCalMo('${team}',-1)">&#8249;</button>
+    <span class="ct">${fmtM(ym)} <span style="font-size:11px;color:var(--t2);font-weight:400">평일 ${workdayCount}일</span></span>
+    <button class="db" onclick="chgCalMo('${team}',1)">&#8250;</button>
+  </div><div class="cg7">`
+  // 요일 헤더 일~토 (일요일 시작)
+  ;['일','월','화','수','목','금','토'].forEach(d=>{
+    const isSun=d==='일',isSat=d==='토'
+    h+=`<div class="cdw" style="${isSun?'color:#A32D2D':isSat?'color:#185FA5':''}">${d}</div>`
+  })
+  // 1일 전 빈칸
+  for(let i=0;i<offsetMon;i++) h+=`<div class="cl empty"></div>`
+  // 모든 날짜 순회
+  for(let d=1;d<=dim;d++){
+    const ds=`${yr}-${String(mo2).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+    const dt=new Date(ds+'T00:00:00'),dow=dt.getDay() // 0=일,6=토
+    const isOff=!isWorkday(ds)
+    const hn=hName(ds)
+    const isSun=dow===0,isSat=dow===6
+    if(isOff){
+      // 공석 셀 — 날짜만 흐리게, 내용 없음
+      let offStyle='background:var(--bg2);border-color:transparent;cursor:default;'
+      let dayColor=isSun?'color:#f09595':isSat?'color:#85b7eb':(hn==='캠페인 일정아님'?'color:var(--t2)':'color:#f09595')
+      h+=`<div class="cl" style="${offStyle}">
+        <div class="cd" style="opacity:.5;${dayColor}">${d}</div>
+        ${hn?`<div class="hl-lbl" style="opacity:.7;${hn==='캠페인 일정아님'?'color:var(--t2)':''}">${hn}</div>`:''}
+      </div>`
+    } else {
+      // 평일 셀
+      const isToday=ds===today,isSel=ds===selDate
+      const eA=tdAch('east',ds),eT=tdTot('east',ds),wA=tdAch('west',ds),wT=tdTot('west',ds)
+      const eR=eT>0?eA/eT:0, wR=wT>0?wA/wT:0
+      const eDot=eT===0?(eA>0?'#1D9E75':'rgba(0,0,0,.18)'):(eA>0?(eA>=eT?'#1D9E75':eR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)')
+      const wDot=wT===0?(wA>0?'#1D9E75':'rgba(0,0,0,.18)'):(wA>0?(wA>=wT?'#1D9E75':wR>.5?'#5DCAA5':'#BA7517'):'rgba(0,0,0,.18)')
+      const eVC=eT===0?(eA>0?'#1D9E75':'var(--t2)'):(eA>=eT?'#1D9E75':eA>0?'#BA7517':'var(--t2)')
+      const wVC=wT===0?(wA>0?'#1D9E75':'var(--t2)'):(wA>=wT?'#1D9E75':wA>0?'#BA7517':'var(--t2)')
+      h+=`<div class="cl${isToday?' today':''}${isSel?' sel':''}" onclick="selDate('${ds}','${team}')">
+        <div class="cd">${d}</div>${hn?`<div class="hl-lbl">${hn}</div>`:''}
+        <div class="ctr">
+          <div class="ctrow"><div class="ctd" style="background:${eDot}"></div><span class="ctl">동부</span><span class="ctv" style="color:${eVC}">${eA}/${eT}</span></div>
+          <div class="ctrow"><div class="ctd" style="background:${wDot}"></div><span class="ctl">서부</span><span class="ctv" style="color:${wVC}">${wA}/${wT}</span></div>
+        </div></div>`
+    }
+  }
+  h+=`</div><div class="cl-leg"><span><div class="ds" style="background:#1D9E75"></div>전원</span><span><div class="ds" style="background:#5DCAA5"></div>과반</span><span><div class="ds" style="background:#BA7517"></div>일부</span><span><div class="ds" style="background:rgba(0,0,0,.18)"></div>미시작</span><span style="color:var(--t2)">▪ 흐린 셀: 주말/공휴일</span></div></div>`
+  return h
+}
+
+// 빠른 1행 입력 폼 (전체 화면에 들어갈 내용)
+function quickTmFormHtml(){
+  const maOptions = ALL_MA.map(m=>`<option value="${m.m}">${m.m}</option>`).join('')
+  // DB에 등록된 거래처(TM대상) 전체를 datalist로 (고객사명 자동완성·검증용)
+  const dbOptions = CACHE.db
+    .filter(r=>r.is_target!==false)
+    .map(r=>`<option value="${(r.name||'').replace(/"/g,'&quot;')}">`).join('')
+  return `<div class="pn" style="margin-bottom:0">
+  <div class="pnt"><i class="ti ti-bolt" style="font-size:16px"></i>빠른 TM 기록 (1행 입력) <span style="font-size:11px;color:var(--t2);font-weight:400;margin-left:4px">고객사명은 DB 등록 거래처만 입력 가능</span></div>
+  <datalist id="db-company-list">${dbOptions}</datalist>
+  <div class="q-row">
+    <select id="q-ma" style="width:110px" onchange="renderAllMaLogs()"><option value="">담당자(이름)*</option>${maOptions}</select>
+    <input type="text" id="q-co" list="db-company-list" placeholder="고객사명*(DB)" style="width:140px" autocomplete="off">
+    <input type="text" id="q-cp" placeholder="현거래업체 (선택)" style="width:110px">
+    <input type="text" id="q-fr" placeholder="수수료율 (선택)" style="width:100px">
+    <input type="text" id="q-ct" placeholder="연락처 (선택)" style="width:120px">
+    <select id="q-rs" style="width:100px"><option value="">통화결과*</option><option>응답</option><option>부재</option><option>거절</option><option>콜백요청</option></select>
+    <input type="text" id="q-cd" placeholder="상담내역 요약*" style="width:180px">
+    <select id="q-cr" style="width:100px"><option value="">상담결과*</option><option value="종결">종결</option><option value="추가상담">추가 상담진행</option></select>
+    <input type="text" id="q-ac" placeholder="액션플랜 (선택)" style="width:140px">
+    <button class="btn p" onclick="saveQuickLog()" style="padding:7px 16px;font-size:13px;font-weight:600">저장</button>
+  </div>
+  </div>`
+}
+
+async function saveQuickLog(){
+  const ma = document.getElementById('q-ma').value
+  const co = document.getElementById('q-co').value.trim()
+  const cp = document.getElementById('q-cp').value.trim()
+  const fr = document.getElementById('q-fr').value.trim()
+  const ct = document.getElementById('q-ct').value.trim()
+  const rs = document.getElementById('q-rs').value
+  const cd = document.getElementById('q-cd').value.trim()
+  const cr = document.getElementById('q-cr').value
+  const ac = document.getElementById('q-ac').value.trim()
+
+  if(!ma || !co || !rs || !cd || !cr){
+    alert('필수 항목(* 표시)을 모두 입력 및 선택해주세요.')
+    return
+  }
+  // 고객사명 DB 검증: 등록된 거래처만 허용
+  const dbMatch = CACHE.db.find(r=>r.is_target!==false && r.name===co)
+  if(!dbMatch){
+    alert('"'+co+'"은(는) DB에 등록된 TM 대상 거래처가 아닙니다.\n고객사명을 DB 목록에서 선택해주세요.\n(신규 거래처는 관리자가 DB관리 탭에서 추가해야 합니다.)')
+    return
+  }
+
+  const rec = {
+    log_date: CUR_DATE,
+    ma_name: ma,
+    team: EAST.includes(ma) ? 'east' : 'west',
+    company: co,
+    current_partner: cp,
+    fee_rate: fr,
+    ceo_contact: ct,
+    call_result: rs,
+    consult_detail: cd,
+    consult_result: cr,
+    action_plan: ac
+  }
+
+  const { data, error } = await sb.from('tm_logs').insert(rec).select().single()
+  if(error){ alert('저장 실패: ' + error.message); return }
+
+  CACHE.logs.unshift(data)
+
+  // 작성 편의를 위해 MA(이름) 항목은 남겨두고 나머지만 초기화
+  ;['q-co','q-cp','q-fr','q-ct','q-ac','q-cd'].forEach(id => document.getElementById(id).value = '')
+  document.getElementById('q-rs').value = ''
+  document.getElementById('q-cr').value = ''
+
+  // 선택한 MA 기억 (renderAll 후 복원용)
+  window.LAST_QUICK_MA = ma
+  reRenderActive()
+}
+
+// ── 전체 탭 ──
+function renderAll(){
+  const date=CUR_DATE
+  let tQ=0,dTM=0,fD=0,totMA=0
+  ALL_MA.forEach(({m})=>{
+    const q=mq(m,date)
+    if(q===0) return // 휴무자 제외
+    totMA++
+    const c=logs4(m,date).length
+    tQ+=q; dTM+=Math.min(c,q); if(c>=q) fD++
+  })
+  const isH=!isWorkday(date)
+  // ── 내 이름 선택 바 (MA 빠른 진입) ──
+  const myName = window.MY_MA_NAME || ''
+  let h = '<div class="myma-bar">'
+    + '<span class="myma-label">👤 내 이름:</span>'
+    + '<div class="myma-chips">'
+    + ALL_MA.map(function(x){
+        const on = x.m===myName ? ' on' : ''
+        return '<button class="myma-chip'+on+'" onclick="selectMyMa(\''+x.m+'\')">'+x.m+'</button>'
+      }).join('')
+    + '</div>'
+    + (myName ? '<button class="myma-clear" onclick="clearMyMa()">선택 해제</button>' : '')
+    + '</div>'
+  h+=`<div class="dn"><button class="db" onclick="chgDate(-1,'all')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'all')">&#8250;</button></div>
+  ${isH?`<div class="hbanner">휴무일(주말/공휴일/캠페인외)입니다. TM 기록은 가능하나 달성률 집계에서 제외됩니다.</div>`:''}
+  <div class="sr"><div class="sc"><div class="sl">전체 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${dTM}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${fD}/${totMA}명</div></div><div class="sc"><div class="sl">전체 달성률</div><div class="sv">${tQ>0?Math.round(dTM/tQ*100):0}%</div></div><div class="sc"><div class="sl">DB 총계</div><div class="sv">${CACHE.db.length}건</div></div></div>`
+  h+=calHtml('all',date)
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">`
+  ;['east','west'].forEach(team=>{
+    const tms=teamMembers(team);let tQ2=0,tD=0,tF=0,tTot=0
+    tms.forEach(m=>{
+      const q=mq(m,date); if(q===0) return; // 휴무 제외
+      tTot++; const c=logs4(m,date).length;
+      tQ2+=q; tD+=Math.min(c,q); if(c>=q) tF++
+    })
+    h+=`<div class="pn" style="margin-bottom:0"><div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div><div style="font-size:12px;color:var(--t2);margin-bottom:8px">대상 ${tTot}명 · 할당 ${tQ2}건 · 달성 ${tD}건 · ${tQ2>0?Math.round(tD/tQ2*100):0}%</div>`
+    tms.forEach(m=>{
+      const q=mq(m,date),c=logs4(m,date).length
+      const isV = q===0
+      const pct = isV ? 0 : Math.min(c/q,1)
+      const bc = isV ? 'var(--b3)' : (c>=q?'#1D9E75':c>0?'#BA7517':'var(--b3)')
+      const ms2 = isMe(m)?';font-weight:600;color:var(--ti)':''
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;${isV?'opacity:0.5':''}"><span style="font-size:12px;width:54px;flex-shrink:0${ms2}">${m}${isMe(m)?' ◀':''}</span><div class="pw" style="flex:1"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div><span style="font-size:11px;color:var(--t2);width:36px;text-align:right">${isV?'휴무':`${c}/${q}`}</span></div>`
+    })
+    h+=`</div>`
+  })
+  
+  h+=`</div>` + quickTmFormHtml()
+  h+=`<div id="all-ma-logs" style="margin-top:1rem"></div>`
+  
+  document.getElementById('tab-all').innerHTML=h
+  // 내 이름 또는 저장 직후 MA를 빠른입력 담당자에 자동 반영
+  const autoMa = window.LAST_QUICK_MA || window.MY_MA_NAME
+  if(autoMa){
+    const qsel=document.getElementById('q-ma')
+    if(qsel) qsel.value=autoMa
+  }
+  renderAllMaLogs()
+}
+
+// 내 이름 선택 (전체 탭 상단 버튼)
+function selectMyMa(name){
+  window.MY_MA_NAME = name
+  try{ localStorage.setItem('my_ma_name', name) }catch(e){}
+  window.LAST_QUICK_MA = name  // 빠른입력 담당자도 자동 채움
+  renderAll()
+}
+function clearMyMa(){
+  window.MY_MA_NAME = ''
+  window.LAST_QUICK_MA = ''
+  try{ localStorage.removeItem('my_ma_name') }catch(e){}
+  renderAll()
+}
+
+// 전체 탭에서 선택한 MA의 오늘 TM 내역 + 오늘 할당 TM처 표시
+function renderAllMaLogs(){
+  const sel = document.getElementById('q-ma')
+  const box = document.getElementById('all-ma-logs')
+  if(!sel || !box) return
+  const ma = sel.value
+  if(!ma){ box.innerHTML=''; return }
+
+  const {today, carryover, total} = getAssignedForDate(ma, CUR_DATE)
+  const todayLogs = logs4(ma, CUR_DATE)
+
+  // ── 오늘 할당 TM처 표시 + 고객사명 자동 세팅 ──
+  let h = '<div class="pn" style="margin-bottom:.75rem">'
+  h += '<div class="pnt"><i class="ti ti-list-check" style="font-size:15px"></i>'
+     + ma + ' — ' + fmtD(CUR_DATE) + ' 할당 TM처</div>'
+
+  if(!total.length){
+    h += '<div style="font-size:12px;color:var(--t2)">배정된 TM 대상처가 없거나 캐시 로딩 중입니다.</div>'
+  } else {
+    if(carryover.length){
+      h += '<div style="font-size:11px;background:var(--bgw);color:var(--tw);padding:6px 10px;border-radius:var(--r1);margin-bottom:8px">'
+         + '⏩ 이월 미수행 <strong>'+carryover.length+'건</strong> 포함 — '
+         + carryover.map(r=>r.name+' ('+r._dueDate.slice(5)+' 미수행)').join(', ')
+         + '</div>'
+    }
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    total.forEach(function(r){
+      const done = todayLogs.some(l=>l.company===r.name)
+      const isCarry = !!r._dueDate
+      const col = done ? 'var(--bgs)' : isCarry ? 'var(--bgw)' : 'var(--bgi)'
+      const tcol = done ? 'var(--ts)' : isCarry ? 'var(--tw)' : 'var(--ti)'
+      h += '<button onclick="setCompanyInForm(\''+r.name.replace(/'/g,"\'")+'\')"'
+         + ' style="font-size:12px;padding:5px 12px;border-radius:99px;border:0.5px solid '+tcol+';background:'+col+';color:'+tcol+';cursor:pointer;font-family:var(--font)'
+         + (done?';text-decoration:line-through;opacity:.6':'')+'">'
+         + r.name+' ('+r.branches+'점)'+(done?' ✓':isCarry?' ↩':'')+'</button>'
+    })
+    h += '</div>'
+    h += '<div style="font-size:11px;color:var(--t2);margin-top:6px">버튼을 클릭하면 고객사명이 자동으로 입력됩니다.</div>'
+  }
+  h += '</div>'
+
+  // ── 오늘 기록된 TM 내역 ──
+  h += '<div class="pn" style="margin-bottom:0"><div class="pnt"><i class="ti ti-notes" style="font-size:15px"></i>오늘 TM 기록 ('+todayLogs.length+'건)</div>'
+  if(!todayLogs.length){
+    h += '<div style="font-size:12px;color:var(--t2);text-align:center;padding:1rem">아직 기록된 TM이 없습니다.</div>'
+  } else {
+    todayLogs.forEach(function(l){
+      const crCls=l.consult_result==='종결'?'종결':'추가상담'
+      const callPill=l.call_result?'<span class="pill '+l.call_result+'">'+l.call_result+'</span>':''
+      const crPill=l.consult_result?'<span class="pill '+crCls+'">'+(l.consult_result==='추가상담'?'추가상담':l.consult_result)+'</span>':''
+      const detail=l.consult_detail?'<div class="lcons">'+l.consult_detail+'</div>':''
+      const ap=l.action_plan?'<div class="lap">→ '+l.action_plan+'</div>':''
+      h+='<div class="lc '+crCls+'"><div class="lh"><span class="lco">'+(l.company||'—')+'</span>'
+        +'<div class="lb">'+callPill+' '+crPill
+        +'<button class="del" onclick="delLogAll(&apos;'+l.id+'&apos;)">✕</button></div></div>'
+        +'<div class="lmg"><div class="lmi">거래업체 <strong>'+(l.current_partner||'—')+'</strong></div>'
+        +'<div class="lmi">수수료율 <strong>'+(l.fee_rate||'—')+'</strong></div>'
+        +'<div class="lmi">연락처 <strong>'+(l.ceo_contact||'—')+'</strong></div></div>'
+        +detail+ap+'</div>'
+    })
+  }
+  h += '</div>'
+  box.innerHTML = h
+}
+
+// 고객사명을 빠른입력폼에 자동 세팅
+function setCompanyInForm(name){
+  const co = document.getElementById('q-co')
+  if(co){ co.value = name; co.focus() }
+}
+
+async function delLogAll(id){
+  if(!confirm('이 TM 기록을 삭제하시겠습니까?')) return
+  await sb.from('tm_logs').delete().eq('id',id)
+  CACHE.logs=CACHE.logs.filter(function(l){return l.id!==id})
+  renderAll()
+}
+
+// ── 할당량 커스텀 입력 프롬프트 ──
+function promptCustomQt(ma, date, team) {
+  const val = prompt('할당할 TM 건수를 입력하세요 (1~999):', '4');
+  if(val === null) return;
+  const num = parseInt(val, 10);
+  if(isNaN(num) || num < 1 || num > 999) {
+    alert('1에서 999 사이의 숫자를 입력해주세요.');
+    return;
+  }
+  setQtBtn(ma, date, num, team);
+}
+
+// ── 팀 탭 ──
+function renderTeam(team){
+  const date=CUR_DATE,members=teamMembers(team);let tQ=0,tD=0,tF=0,totMA=0
+  members.forEach(m=>{
+    const q=mq(m,date); if(q===0) return; // 휴무 제외
+    totMA++; const c=logs4(m,date).length;
+    tQ+=q; tD+=Math.min(c,q); if(c>=q) tF++
+  })
+  const isH=!isWorkday(date)
+  let h=`<div class="dn"><button class="db" onclick="chgDate(-1,'${team}')">&#8249;</button><span class="dl">${fmtD(date)}${isH?` <span style="font-size:11px;color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''}</span><button class="db" onclick="chgDate(1,'${team}')">&#8250;</button></div>
+  <div class="sr"><div class="sc"><div class="sl">팀 할당</div><div class="sv">${tQ}건</div></div><div class="sc"><div class="sl">달성 TM</div><div class="sv">${tD}건</div></div><div class="sc"><div class="sl">달성 MA</div><div class="sv">${tF}/${totMA}명</div></div><div class="sc"><div class="sl">달성률</div><div class="sv">${tQ>0?Math.round(tD/tQ*100):0}%</div></div></div>`
+  h+=calHtml(team,date)
+  h+=`<div class="stl">${team==='east'?'동부팀 (8명)':'서부팀 (9명)'} MA 현황</div><div class="mg">`
+  members.forEach(m=>{
+    const q=mq(m,date),cnt=logs4(m,date).length
+    const isV = q===0
+    const pct = isV ? 0 : Math.min(cnt/q,1)
+    const bc = isV ? 'var(--b3)' : (cnt>=q?'#1D9E75':cnt>0?'#BA7517':'var(--b3)')
+    const sc = isV ? 'none' : (cnt>=q?'done':cnt>0?'partial':'none')
+    const assigned=CACHE.db.filter(r=>r.assign1===m||r.assign2===m),r2cnt=CACHE.db.filter(r=>r.assign2===m).length
+    const isCustom = q !== 1 && q !== 3 && q !== 0;
+
+    h+=`<div class="mc ${sc}" onclick="openModal('${m}','${team}')" style="${isV?'opacity:0.6;background:var(--bg2)':''}">
+      <div class="mn">${m}${r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':''} ${isV?'<span style="font-size:10px;color:var(--t2);font-weight:400">(휴무)</span>':''}</div>
+      <div class="ms">${isV?'휴무/부재':`${cnt}/${q}건 ${cnt>=q?'✓ 완료':cnt>0?'진행중':'미시작'}`}</div>
+      <div class="pw"><div class="pp" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div>
+      <div class="mp">${isV?'-':Math.round(pct*100)+'%'}</div>
+      <div class="qr" onclick="event.stopPropagation()"><span class="ql">할당량</span><div class="qt">
+        <button class="qtb ${q===1?'on':''}" onclick="setQtBtn('${m}','${date}',1,'${team}')" style="padding:2px 5px">1</button>
+        <button class="qtb ${q===3?'on':''}" onclick="setQtBtn('${m}','${date}',3,'${team}')" style="padding:2px 5px">3</button>
+        <button class="qtb ${isCustom?'on':''}" onclick="promptCustomQt('${m}','${date}','${team}')" style="padding:2px 5px" title="직접입력">${isCustom ? q : '+'}</button>
+        <button class="qtb ${q===0?'on':''}" style="margin-left:2px;padding:2px 5px;${q===0?'background:var(--bgd);color:var(--td);border-color:transparent':''}" onclick="setQtBtn('${m}','${date}',0,'${team}')">휴무</button>
+      </div></div>
+      ${assigned.length>0?'<div style="margin-top:6px">'+assigned.slice(0,3).map(r=>'<div class="ai '+(r.assign2===m?'r2':'')+'">'+( r.assign2===m?'[2차] ':'')+'<i class="ti ti-building" style="font-size:11px"></i> '+r.name+'</div>').join('')+(assigned.length>3?'<div class="ai">+' +(assigned.length-3)+'건 더</div>':'')+'</div>':''}
+    </div>`
+  })
+  h+=`</div>`;document.getElementById('tab-'+team).innerHTML=h
+}
+
+async function setQtBtn(ma,date,v,team){
+  const existing=CACHE.quotas.find(q=>q.ma_name===ma&&q.quota_date===date)
+  if(existing){
+    await sb.from('ma_quotas').update({quota:v}).eq('ma_name',ma).eq('quota_date',date)
+    existing.quota=v
+  }else{
+    const{data}=await sb.from('ma_quotas').insert({ma_name:ma,quota_date:date,quota:v}).select().single()
+    if(data)CACHE.quotas.push(data)
+  }
+  renderTeam(team)
+}
+
+// ── TM 내역 탭 ──
+function getAllRows(){
+  return [...CACHE.logs].sort((a,b)=>b.log_date.localeCompare(a.log_date)||b.created_at.localeCompare(a.created_at))
+    .map(l=>({...l,team:EAST.includes(l.ma_name)?'동부팀':'서부팀'}))
+}
+function hlText(t,kw){if(!kw||!t)return t||'';const e=kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return t.replace(new RegExp(e,'gi'),m=>`<span class="hl">${m}</span>`)}
+
+function renderTMLog(){
+  const all=getAllRows()
+  const kw=(document.getElementById('tl-kw')?.value||'').trim()
+  const viewLabel = isAdmin()
+    ? '<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bgi);color:var(--ti);margin-left:6px">전체 열람 (관리자)</span>'
+    : '<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg2);color:var(--t2);margin-left:6px">내 TM만 표시</span>'
+  const exportBtns = isAdmin()
+    ? '<button class="btn s" onclick="exportCSV()"><i class="ti ti-file-text" style="font-size:13px"></i> CSV</button>'
+      + '<button class="btn s p" onclick="exportExcel()"><i class="ti ti-table" style="font-size:13px"></i> Excel</button>'
+    : ''
+  let h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">'
+    + '<span class="stl" style="margin-bottom:0">TM 내역 ' + viewLabel + ' <span style="font-size:12px;color:var(--t2);font-weight:400">총 ' + all.length + '건</span></span>'
+    + '<div style="display:flex;gap:6px">' + exportBtns + '</div>'
+    + '</div>'
+  const maOptions = ALL_MA.map(function(x){ return '<option>'+x.m+'</option>' }).join('')
+  h += '<div class="fr"><div class="sb"><i class="ti ti-search si"></i>'
+    + '<input type="text" id="tl-kw" placeholder="전체 내용 통합 검색" value="'+kw+'" oninput="renderTMLog()">'
+    + '</div></div>'
+    + '<div class="fr">'
+    + '<select id="tl-team" onchange="renderTMLog()"><option value="">전체 팀</option><option value="동부팀">동부팀</option><option value="서부팀">서부팀</option></select>'
+    + '<select id="tl-ma" onchange="renderTMLog()"><option value="">전체 MA</option>' + maOptions + '</select>'
+    + '<select id="tl-call" onchange="renderTMLog()"><option value="">통화결과 전체</option><option>응답</option><option>부재</option><option>거절</option><option>콜백요청</option></select>'
+    + '<select id="tl-cr" onchange="renderTMLog()"><option value="">상담결과 전체</option><option value="종결">종결</option><option value="추가상담">추가 상담진행</option></select>'
+    + '<input type="date" id="tl-from" onchange="renderTMLog()" style="max-width:130px">'
+    + '<input type="date" id="tl-to" onchange="renderTMLog()" style="max-width:130px">'
+    + '</div>'
+  const tf=document.getElementById('tl-team')?.value||'',mf=document.getElementById('tl-ma')?.value||'',cf=document.getElementById('tl-call')?.value||'',crf=document.getElementById('tl-cr')?.value||'',ff=document.getElementById('tl-from')?.value||'',tf2=document.getElementById('tl-to')?.value||'',kl=kw.toLowerCase()
+  const fil=all.filter(r=>{
+    if(!isAdmin() && !isMe(r.ma_name)) return false
+    if(tf&&r.team!==tf)return false;if(mf&&r.ma_name!==mf)return false;if(cf&&r.call_result!==cf)return false;if(crf&&r.consult_result!==crf)return false;if(ff&&r.log_date<ff)return false;if(tf2&&r.log_date>tf2)return false
+    if(kl){const hay=[r.company,r.current_partner,r.fee_rate,r.ceo_contact,r.consult_detail,r.action_plan,r.ma_name].join(' ').toLowerCase();if(!hay.includes(kl))return false}
+    return true
+  })
+  const kwMsg=kw&&fil.length<all.length?`<span class="kwc">"${kw}" ${fil.length}건 매칭</span>`:''
+  h+=`<div style="font-size:12px;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;gap:6px">${fil.length}건 표시 ${kwMsg}</div>`
+  if(!fil.length){h+=`<div style="text-align:center;padding:3rem;color:var(--t2);font-size:13px"><i class="ti ti-search" style="font-size:24px;display:block;margin:0 auto 8px"></i>${kw?`"${kw}"에 해당하는 내역이 없습니다.`:'조건에 맞는 TM 내역이 없습니다.'}</div>`}
+  else{
+    h+=`<div class="tlw"><table class="tlt"><thead><tr><th style="width:80px">날짜</th><th style="width:42px">팀</th><th style="width:52px">MA</th><th style="width:100px">고객사명</th><th style="width:90px">현거래업체</th><th style="width:58px">수수료율</th><th style="width:88px">대표자연락처</th><th style="width:58px">통화결과</th><th>상담내역</th><th style="width:68px">상담결과</th><th style="width:100px">액션플랜</th></tr></thead><tbody>`
+    fil.forEach(r=>{
+      const hf=kw?(v)=>hlText(v,kw):(v)=>v||'—'
+      const crCls=r.consult_result==='종결'?'pill 종결':'pill 추가상담',crL=r.consult_result==='추가상담'?'추가상담':r.consult_result||'—'
+      h+=`<tr>
+        <td style="color:var(--t2);white-space:nowrap">${r.log_date}</td>
+        <td>${r.team}</td>
+        <td style="font-weight:500">${hf(r.ma_name)}</td>
+        <td style="font-weight:500">${hf(r.company)}</td>
+        <td>${hf(r.current_partner)||'—'}</td>
+        <td>${hf(r.fee_rate)||'—'}</td>
+        <td style="color:var(--t2)">${r.ceo_contact||'—'}</td>
+        <td><span class="pill ${r.call_result}">${r.call_result||'—'}</span></td>
+        <td style="max-width:180px;white-space:pre-wrap;word-break:break-all;line-height:1.4">${hf(r.consult_detail)||'—'}</td>
+        <td>${r.consult_result?`<span class="${crCls}">${crL}</span>`:'—'}</td>
+        <td style="color:var(--ti);white-space:pre-wrap;word-break:break-all">${hf(r.action_plan)||'—'}</td>
+      </tr>`
+    })
+    h+=`</tbody></table></div>`
+  }
+  document.getElementById('tab-tmlog').innerHTML=h
+}
+
+function getFiltered(){
+  const all=getAllRows(),tf=document.getElementById('tl-team')?.value||'',mf=document.getElementById('tl-ma')?.value||'',cf=document.getElementById('tl-call')?.value||'',crf=document.getElementById('tl-cr')?.value||'',ff=document.getElementById('tl-from')?.value||'',tf2=document.getElementById('tl-to')?.value||'',kl=(document.getElementById('tl-kw')?.value||'').trim().toLowerCase()
+  return all.filter(r=>{
+    if(tf&&r.team!==tf)return false;if(mf&&r.ma_name!==mf)return false;if(cf&&r.call_result!==cf)return false;if(crf&&r.consult_result!==crf)return false;if(ff&&r.log_date<ff)return false;if(tf2&&r.log_date>tf2)return false
+    if(kl){const h=[r.company,r.current_partner,r.fee_rate,r.ceo_contact,r.consult_detail,r.action_plan,r.ma_name].join(' ').toLowerCase();if(!h.includes(kl))return false}
+    return true
+  })
+}
+function exportCSV(){
+  const rows=getFiltered();if(!rows.length){alert('내보낼 데이터가 없습니다.');return}
+  const hdr=['날짜','팀','MA','고객사명','현거래업체','수수료율','대표자연락처','통화결과','상담내역','상담결과','액션플랜']
+  const csv=[hdr].concat(rows.map(r=>[r.log_date,r.team,r.ma_name,r.company,r.current_partner,r.fee_rate,r.ceo_contact,r.call_result,r.consult_detail,r.consult_result,r.action_plan].map(v=>`"${String(v||'').replace(/"/g,'""')}"`)))
+  const blob=new Blob(['\uFEFF'+csv.map(r=>r.join(',')).join('\n')],{type:'text/csv;charset=utf-8'})
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`TM내역_${td()}.csv`;a.click()
+}
+function exportExcel(){
+  const rows=getFiltered();if(!rows.length){alert('내보낼 데이터가 없습니다.');return}
+  const hdr=['날짜','팀','MA','고객사명','현거래업체','수수료율','대표자연락처','통화결과','상담내역','상담결과','액션플랜']
+  let xml=`<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="H"><Font ss:Bold="1"/><Interior ss:Color="#E6F1FB" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="TM내역"><Table><Row>${hdr.map(h=>`<Cell ss:StyleID="H"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>${rows.map(r=>`<Row>${[r.log_date,r.team,r.ma_name,r.company,r.current_partner,r.fee_rate,r.ceo_contact,r.call_result,r.consult_detail,r.consult_result,r.action_plan].map(v=>`<Cell><Data ss:Type="String">${String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</Data></Cell>`).join('')}</Row>`).join('')}</Table></Worksheet></Workbook>`
+  const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'})
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`TM내역_${td()}.xls`;a.click()
+}
+
+// ── DB 탭 렌더링 ──
+function renderDBTab() {
+  document.getElementById('tab-db').innerHTML = dbPanelHtml()
+  bindFileInput()
+}
+
+// ── DB 패널 ──
+function dbPanelHtml(){
+  const allMaOptsForReassign = [...EAST,...WEST].filter(m=>isActiveMa(m)).map(m=>`<option value="${m}">${m} (${EAST.includes(m)?'동부':'서부'})</option>`).join('')
+  const assigned=CACHE.db.filter(r=>r.assign1||r.assign2),unassigned=CACHE.db.filter(r=>!r.assign1&&!r.assign2),r2ready=CACHE.db.filter(r=>r.r2_enabled&&r.assign1&&!r.assign2)
+  let h=`<div class="pn"><div class="pnt"><i class="ti ti-database" style="font-size:16px"></i>DB 관리 & 자동 할당<div style="margin-left:auto;display:flex;gap:6px"><button class="btn s p" onclick="doAutoAssign()"><i class="ti ti-wand" style="font-size:13px"></i> 랜덤 할당 (10개 이상)</button><button class="btn s dng" onclick="resetDB()">초기화</button></div></div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:.75rem">전체 ${CACHE.db.length}건 · 대상 ${CACHE.db.filter(r=>r.is_target!==false).length}건 · 제외 <span style="color:var(--td)">${CACHE.db.filter(r=>r.is_target===false).length}건</span> · 할당완료 ${assigned.length}건 · 미할당 ${unassigned.length}건</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:.75rem;background:var(--bg2);border-radius:var(--r1);padding:7px 10px">
+    🎲 <strong>랜덤 할당</strong>은 [TM대상 Y · 미할당 · 매장 10개 이상]인 거래처를 권역별로 무작위 균등 분배합니다.
+    매장 10개 미만(대상): <strong style="color:var(--tw)">${CACHE.db.filter(r=>r.is_target!==false&&!r.assign1&&(r.branches||0)<10).length}건</strong>은 할당 보류 — 표에서 수동 배정하세요.
+  </div>
+  <div class="ua" onclick="document.getElementById('csv-input').click()"><i class="ti ti-upload" style="font-size:20px;color:var(--t2);display:block;margin:0 auto 5px"></i><div style="font-size:13px;color:var(--t2)">CSV 파일 업로드</div><div style="font-size:11px;color:var(--t2);margin-top:4px">컬럼 순서: <strong>본사명, 가맹점수, 권역(동부/서부), 대상유무(Y/N)</strong><br>대상유무 <strong>N</strong> → 자동 분배 및 TM 대상 제외</div></div>
+  <input type="file" id="csv-input" accept=".csv" style="display:none">
+  <div style="background:var(--bg2);border-radius:var(--r1);padding:12px 14px;margin-bottom:.75rem">
+    <div style="font-size:12px;font-weight:500;color:var(--t1);margin-bottom:8px"><i class="ti ti-plus" style="font-size:13px"></i> 거래처 직접 추가 (신규 업체 건건 입력)</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="db-add-name" placeholder="거래처명*" style="flex:1;min-width:140px;font-size:13px;padding:7px 9px">
+      <input type="number" id="db-add-branches" placeholder="가맹점수*" min="0" style="width:100px;font-size:13px;padding:7px 9px">
+      <select id="db-add-region" style="width:100px;font-size:13px;padding:7px 9px">
+        <option value="east">동부권</option>
+        <option value="west">서부권</option>
+      </select>
+      <select id="db-add-target" style="width:110px;font-size:13px;padding:7px 9px">
+        <option value="Y">대상(TM진행)</option>
+        <option value="N">제외(보류)</option>
+      </select>
+      <button class="btn p" onclick="addDBRow()" style="padding:7px 16px;font-size:13px;font-weight:600;white-space:nowrap">추가</button>
+    </div>
+    <div id="db-add-msg" style="font-size:12px;margin-top:6px;min-height:14px"></div>
+  </div>
+  <div style="background:var(--bgi);border-radius:var(--r1);padding:12px 14px;margin-bottom:.75rem">
+    <div style="font-size:12px;font-weight:500;color:var(--ti);margin-bottom:8px"><i class="ti ti-transfer" style="font-size:13px"></i> 담당 MA 일괄 변경 (기접촉·권역조정 등)</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select id="reassign-from" style="font-size:13px;padding:7px 9px;min-width:110px"><option value="">기존 담당 MA</option>${allMaOptsForReassign}</select>
+      <span style="font-size:13px;color:var(--t2)">→</span>
+      <select id="reassign-to" style="font-size:13px;padding:7px 9px;min-width:110px"><option value="">변경할 MA</option>${allMaOptsForReassign}</select>
+      <button class="btn p" onclick="bulkReassign()" style="padding:7px 16px;font-size:13px;font-weight:600;white-space:nowrap">전체 이관</button>
+      <span id="reassign-msg" style="font-size:12px;color:var(--ts)"></span>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-top:6px">선택한 MA의 1차 담당 거래처를 모두 다른 MA에게 넘깁니다. (개별 변경은 아래 표의 담당 칸에서 가능)</div>
+  </div>`
+  if(CACHE.db.length>0){
+    h+=`<div class="fr"><select id="db-fr" onchange="refreshDBTable()"><option value="">전체 권역</option><option value="east">동부</option><option value="west">서부</option></select><select id="db-fs" onchange="refreshDBTable()"><option value="">전체 상태</option><option value="u">미할당</option><option value="a1">1차 할당</option><option value="r2">2차 대기</option><option value="a2">2차 할당</option></select>
+      <select id="db-ft" onchange="refreshDBTable()"><option value="">전체 대상</option><option value="y">대상(Y)</option><option value="n">제외(N)</option></select><input type="text" id="db-sk" placeholder="본사명 검색" oninput="refreshDBTable()" style="max-width:140px"></div>
+    <div class="dbtw"><table class="dbt"><colgroup><col style="width:26%"><col style="width:9%"><col style="width:7%"><col style="width:8%"><col style="width:16%"><col style="width:16%"><col style="width:18%"></colgroup><thead><tr><th>본사명</th><th>가맹점</th><th>권역</th><th style="width:80px">대상</th><th>1차 담당</th><th>2차 담당</th><th>관리</th></tr></thead><tbody id="db-tbody"></tbody></table></div>`
+  }
+  h+=`</div>`;return h
+}
+function refreshDBTable(){
+  const tbody=document.getElementById('db-tbody');if(!tbody)return
+  const rf=document.getElementById('db-fr')?.value||'',sf=document.getElementById('db-fs')?.value||'',kw=(document.getElementById('db-sk')?.value||'').trim().toLowerCase()
+  const tf2=document.getElementById('db-ft')?.value||''
+  const rows=CACHE.db.filter(r=>{
+    if(rf&&r.region!==rf)return false;if(kw&&!r.name.toLowerCase().includes(kw))return false
+    const st=r.assign2?'a2':r.r2_enabled?'r2':r.assign1?'a1':'u'
+    if(sf&&st!==sf)return false
+    if(tf2==='y'&&r.is_target===false)return false
+    if(tf2==='n'&&r.is_target!==false)return false
+    return true
+  })
+  tbody.innerHTML=rows.slice(0,50).map(r=>{
+    const st=r.assign2?'a2':r.r2_enabled?'r2':r.assign1?'a1':'u'
+    const stL=r.assign2?'2차할당':r.r2_enabled?'2차대기':r.assign1?'1차할당':'미할당'
+    const a2h=r.assign2?`<span style="font-size:12px;color:var(--ti)">${r.assign2}</span>`:r.r2_enabled?`<select style="font-size:11px;padding:2px 4px;max-width:90px" onchange="setAssign2(${r.id},this.value)"><option value="">담당자 선택</option>${teamMembers(r.region).filter(m=>m!==r.assign1).map(m=>`<option>${m}</option>`).join('')}</select>`:`<span style="font-size:11px;color:var(--t2)">—</span>`
+    const allActiveMA = [...EAST,...WEST].filter(m=>isActiveMa(m))
+    const a1Opts = r.assign1
+    ? allActiveMA.filter(m=>m!==r.assign1).map(m=>`<option value="${m}">${m}(${EAST.includes(m)?'동':'서'})</option>`).join('')
+    : allActiveMA.map(m=>`<option value="${m}">${m}(${EAST.includes(m)?'동':'서'})</option>`).join('')
+  const a1ChangeHtml = `<select style="font-size:11px;padding:3px 5px;border-radius:4px;max-width:105px;margin-left:4px;background:var(--bgi);color:var(--ti);border:0.5px solid var(--bi)" onchange="changeAssign1(${r.id},this.value)" title="담당 MA 변경 (타 권역 포함)"><option value="">${r.assign1?'▾ 변경':'▾ 배정'}</option>${a1Opts}</select>`
+    const isTarget = r.is_target !== false
+    const targetBadge = isTarget
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:99px;background:var(--bgs);color:var(--ts)">Y</span>`
+      : `<span style="font-size:10px;padding:1px 7px;border-radius:99px;background:var(--bgd);color:var(--td)">N</span>`
+    const rowStyle = isTarget ? '' : 'opacity:.45;'
+    return `<tr style="${rowStyle}"><td title="${r.name}">${r.name}${!isTarget?'<span style="font-size:9px;color:var(--td)">(제외)</span>':''}</td><td>${r.branches.toLocaleString()}</td><td>${r.region==='east'?'동부':'서부'}</td><td>${targetBadge} <button class="btn s" onclick="toggleTarget(${r.id},${isTarget})" style="padding:1px 6px;font-size:10px">${isTarget?'제외':'포함'}</button></td><td style="font-size:12px">${r.assign1?r.assign1+a1ChangeHtml:a1ChangeHtml}</td><td>${a2h}</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span class="bdg ${st}" style="font-size:10px">${stL}</span>${!r.r2_enabled&&r.assign1&&!r.assign2?`<button class="btn s" onclick="enableR2(${r.id})" style="padding:2px 5px;font-size:10px;color:var(--ti);border-color:#B5D4F4">2차</button>`:''}<button class="btn s" onclick="deleteDBRow(${r.id})" style="padding:2px 5px;font-size:10px;color:var(--td);border-color:#f7c1c1">삭제</button></div></td></tr>`
+  }).join('')
+}
+async function setAssign2(id,ma){
+  if(!ma)return
+  await sb.from('company_db').update({assign2:ma}).eq('id',id)
+  const r=CACHE.db.find(x=>x.id===id);if(r)r.assign2=ma
+  refreshDBTable()
+}
+
+async function toggleTarget(id, currentIsTarget){
+  const r = CACHE.db.find(x=>x.id===id)
+  if(!r) return
+  const newVal = !currentIsTarget
+  const label = newVal ? '대상으로 변경' : '제외로 변경'
+  if(!confirm(`"${r.name}"을 ${label}하시겠습니까?`)) return
+  await sb.from('company_db').update({is_target: newVal}).eq('id', id)
+  r.is_target = newVal
+  refreshDBTable()
+  renderAll()
+}
+
+async function changeAssign1(id,ma){
+  if(!ma)return
+  const r=CACHE.db.find(x=>x.id===id)
+  const prev = r&&r.assign1 ? r.assign1 : '미배정'
+  // 즉시 저장 (드롭다운 선택 즉시 반영 — 별도 확인 불필요)
+  await sb.from('company_db').update({assign1:ma}).eq('id',id)
+  if(r)r.assign1=ma
+  refreshDBTable()
+  renderAll()
+  // 하단에 작은 피드백 (alert 대신)
+  const msg=document.getElementById('reassign-msg')
+  if(msg){msg.style.color='var(--ts)';msg.textContent='✓ '+r.name+': '+prev+' → '+ma; setTimeout(()=>{if(msg.textContent.includes(r.name))msg.textContent=''},3000)}
+}
+
+async function bulkReassign(){
+  const fromMA = document.getElementById('reassign-from')?.value
+  const toMA = document.getElementById('reassign-to')?.value
+  const msg = document.getElementById('reassign-msg')
+  if(!fromMA || !toMA){ if(msg){msg.style.color='var(--td)';msg.textContent='기존/변경 MA를 모두 선택해주세요.'} return }
+  if(fromMA===toMA){ if(msg){msg.style.color='var(--td)';msg.textContent='같은 MA입니다.'} return }
+  const targets = CACHE.db.filter(r=>r.assign1===fromMA)
+  if(!targets.length){ if(msg){msg.style.color='var(--td)';msg.textContent=fromMA+' 담당 거래처가 없습니다.'} return }
+  if(!confirm(fromMA+'님의 1차 담당 거래처 '+targets.length+'건을 모두 '+toMA+'님에게 이관하시겠습니까?\n(TM 기록은 '+fromMA+' 이름으로 보존됩니다)')) return
+  if(msg){msg.style.color='var(--t2)';msg.textContent='이관 중...'}
+  for(const r of targets){
+    await sb.from('company_db').update({assign1:toMA}).eq('id',r.id)
+    r.assign1 = toMA
+  }
+  if(msg){msg.style.color='var(--ts)';msg.textContent='✓ '+targets.length+'건 이관 완료 ('+fromMA+' → '+toMA+')'}
+  refreshDBTable()
+  renderAll()
+}
+
+async function deleteDBRow(id){
+  const r=CACHE.db.find(x=>x.id===id)
+  if(!r)return
+  if(!confirm(`"${r.name}" 을(를) DB에서 삭제하시겠습니까?
+(TM 기록은 보존됩니다)`))return
+  await sb.from('company_db').delete().eq('id',id)
+  CACHE.db=CACHE.db.filter(x=>x.id!==id)
+  refreshDBTable()
+  renderAll()
+}
+async function enableR2(id){
+  await sb.from('company_db').update({r2_enabled:true}).eq('id',id)
+  const r=CACHE.db.find(x=>x.id===id);if(r)r.r2_enabled=true
+  refreshDBTable()
+}
+function bindFileInput(){const inp=document.getElementById('csv-input');if(inp)inp.onchange=handleFile}
+function handleFile(e){
+  const file=e.target.files[0];if(!file)return
+  const reader=new FileReader()
+  reader.onload=async ev=>{
+    Papa.parse(ev.target.result,{header:true,skipEmptyLines:true,complete:async res=>{
+      const rows=res.data.map(row=>{
+        const name=(row['본사명']||row['name']||'').trim()
+        const branches=parseInt(row['가맹점수']||row['가맹점']||0)
+        const region=(row['권역']||'').trim()
+        const targetRaw=(row['대상유무']||row['대상']||'Y').toString().trim().toUpperCase()
+        const is_target = targetRaw !== 'N'  // Y 또는 빈값이면 대상, N이면 제외
+        const r=region.includes('서')||region.toLowerCase().includes('west')?'west':'east'
+        return name?{name,branches:isNaN(branches)?0:branches,region:r,is_target,assign1:null,assign2:null,r2_enabled:false}:null
+      }).filter(Boolean)
+      if(!rows.length){alert('유효한 데이터가 없습니다.');return}
+      const{data,error}=await sb.from('company_db').insert(rows).select()
+      if(error){alert('업로드 실패: '+error.message);return}
+      CACHE.db=[...CACHE.db,...(data||[])]
+      alert(`${rows.length}건 업로드 완료`);
+      renderDBTab()
+      renderAll()
+    }})
+  }
+  reader.readAsText(file,'UTF-8')
+}
+async function addDBRow(){
+  const name = document.getElementById('db-add-name')?.value.trim()
+  const branches = parseInt(document.getElementById('db-add-branches')?.value || '0', 10)
+  const region = document.getElementById('db-add-region')?.value || 'east'
+  const targetVal = document.getElementById('db-add-target')?.value || 'Y'
+  const msg = document.getElementById('db-add-msg')
+
+  if(!name){ msg.style.color='var(--td)'; msg.textContent='거래처명을 입력해주세요.'; return }
+  if(isNaN(branches) || branches < 0){ msg.style.color='var(--td)'; msg.textContent='가맹점수를 올바르게 입력해주세요.'; return }
+
+  // 중복 체크
+  if(CACHE.db.some(r=>r.name===name)){
+    if(!confirm('"'+name+'"은 이미 등록된 거래처입니다. 그래도 추가하시겠습니까?')) return
+  }
+
+  msg.style.color='var(--t2)'; msg.textContent='추가 중...'
+  const rec = {
+    name, branches, region,
+    is_target: targetVal !== 'N',
+    assign1: null, assign2: null, r2_enabled: false
+  }
+  try{
+    const { data, error } = await sb.from('company_db').insert(rec).select().single()
+    if(error) throw error
+    CACHE.db.push(data)
+    // 가맹점수 많은 순 정렬 유지
+    CACHE.db.sort((a,b)=>b.branches-a.branches)
+    msg.style.color='var(--ts)'
+    msg.textContent='✓ "'+name+'" ('+(region==='east'?'동부권':'서부권')+', '+branches+'개점) 추가 완료'
+    // 입력란 초기화 (권역은 유지 — 연속 입력 편의)
+    document.getElementById('db-add-name').value=''
+    document.getElementById('db-add-branches').value=''
+    renderDBTab()
+    renderAll()
+  }catch(e){
+    msg.style.color='var(--td)'; msg.textContent='추가 실패: '+e.message
+  }
+}
+
+// 배열 셔플 (Fisher-Yates)
+function shuffle(arr){
+  const a=[...arr]
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
+  return a
+}
+
+// 자동 할당: TM대상(Y) + 매장 10개 이상 + 미할당 → 권역별 랜덤 균등 분배
+async function doAutoAssign(){
+  const MIN_BRANCHES = 10
+  // 대상: is_target!==false, 미할당, 매장 10개 이상
+  const ePool = CACHE.db.filter(r=>r.region==='east' && !r.assign1 && r.is_target!==false && (r.branches||0)>=MIN_BRANCHES)
+  const wPool = CACHE.db.filter(r=>r.region==='west' && !r.assign1 && r.is_target!==false && (r.branches||0)>=MIN_BRANCHES)
+  // 10개 미만(대상이지만 할당 보류) 개수 안내
+  const eSmall = CACHE.db.filter(r=>r.region==='east' && !r.assign1 && r.is_target!==false && (r.branches||0)<MIN_BRANCHES).length
+  const wSmall = CACHE.db.filter(r=>r.region==='west' && !r.assign1 && r.is_target!==false && (r.branches||0)<MIN_BRANCHES).length
+
+  if(ePool.length===0 && wPool.length===0){
+    alert('할당할 대상이 없습니다.\n(조건: TM대상 Y · 미할당 · 매장 '+MIN_BRANCHES+'개 이상)')
+    return
+  }
+
+  const activeEast = EAST.filter(m=>isActiveMa(m))
+  const activeWest = WEST.filter(m=>isActiveMa(m))
+  if(activeEast.length===0 || activeWest.length===0){
+    alert('재직 중인 MA가 없는 팀이 있습니다. 인력관리에서 확인해주세요.')
+    return
+  }
+
+  let msg = '매장 '+MIN_BRANCHES+'개 이상 대상을 랜덤 할당합니다.\n\n'
+    + '· 동부권: '+ePool.length+'건 → '+activeEast.length+'명\n'
+    + '· 서부권: '+wPool.length+'건 → '+activeWest.length+'명'
+  if(eSmall+wSmall>0){
+    msg += '\n\n※ 매장 '+MIN_BRANCHES+'개 미만 '+(eSmall+wSmall)+'건은 할당 보류됩니다.\n   (필요 시 표에서 수동 배정 가능)'
+  }
+  if(!confirm(msg)) return
+
+  const updates=[]
+  // 랜덤 셔플 후 라운드로빈 → 균등하면서도 무작위
+  shuffle(ePool).forEach((r,i)=>{ r.assign1=activeEast[i%activeEast.length]; updates.push({id:r.id,assign1:r.assign1}) })
+  shuffle(wPool).forEach((r,i)=>{ r.assign1=activeWest[i%activeWest.length]; updates.push({id:r.id,assign1:r.assign1}) })
+
+  for(const u of updates) await sb.from('company_db').update({assign1:u.assign1}).eq('id',u.id)
+  alert('할당 완료: 총 '+updates.length+'건\n동부 '+ePool.length+'건 · 서부 '+wPool.length+'건')
+  renderDBTab()
+  renderAll()
+}
+async function resetDB(){
+  if(!confirm('DB를 초기화하시겠습니까?'))return
+  await sb.from('company_db').delete().neq('id',0)
+  CACHE.db=[];
+  renderDBTab()
+  renderAll()
+}
+
+// ── 누적 현황 ──
+function renderCum(){
+  const allMonths = campaignMonths()       // 캠페인 시작월~현재월
+  const years = campaignYears()
+
+  // 기본 선택월: 현재월(캠페인 범위 내), 없으면 마지막 달
+  if(!window.CUM_MONTH || allMonths.indexOf(window.CUM_MONTH)<0){
+    const cur = mo(CUR_DATE)
+    window.CUM_MONTH = allMonths.indexOf(cur)>=0 ? cur : allMonths[allMonths.length-1]
+  }
+  const selMonth = window.CUM_MONTH
+  const selYear = selMonth.split('-')[0]
+
+  // 해당 월의 평일(근무일) 목록
+  const monthDates = workdaysOfMonth(selMonth)
+
+  let h = '<div class="stl">월별 누적 현황</div>'
+
+  // ── 연도 선택 (캠페인 기간에 속한 연도만) ──
+  if(years.length > 1){
+    h += '<div class="mon-sel" style="margin-bottom:.6rem">'
+    years.forEach(function(y){
+      const on = y === selYear ? ' on' : ''
+      h += '<button class="mon-btn'+on+'" onclick="setCumYear(\''+y+'\')">'+y+'년</button>'
+    })
+    h += '</div>'
+  }
+
+  // ── 월 선택 버튼 (선택 연도의 캠페인 월만) ──
+  const monthsOfYear = allMonths.filter(function(ym){ return ym.split('-')[0]===selYear })
+  h += '<div class="mon-sel">'
+  monthsOfYear.forEach(function(ym){
+    const on = ym === selMonth ? ' on' : ''
+    const m = ym.split('-')[1]
+    h += '<button class="mon-btn'+on+'" onclick="setCumMonth(\''+ym+'\')">'+parseInt(m)+'월</button>'
+  })
+  h += '</div>'
+
+  // ── 일자별 TM 그래프 (동부+서부 스택) ──
+  h += renderDailyChart(monthDates, selMonth)
+
+  // ── 팀별 MA 카드 ──
+  ;[['east','🔵 동부팀',EAST],['west','🟠 서부팀',WEST]].forEach(function(team){
+    const code=team[0], label=team[1], members=team[2]
+    h += '<div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:0.5px solid var(--b3)">'+label+' ('+members.length+'명)</div>'
+    h += '<div class="cug" style="margin-bottom:1.25rem">'
+    members.forEach(function(m){
+      let total=0,ach=0,workDays=0
+      monthDates.forEach(function(d){
+        const q=mq(m,d); if(q===0) return
+        workDays++; const c=logs4(m,d).length; total+=c; if(c>=q) ach++
+      })
+      const r2cnt=CACHE.db.filter(function(r){return r.assign2===m}).length
+      // 해당 월 전체 일자 점 표시 (최대 23개 평일)
+      const dots=monthDates.map(function(d){
+        const q=mq(m,d)
+        if(q===0) return '<span class="sd" style="background:transparent;border:0.5px solid var(--b3)" title="'+d+':휴무"></span>'
+        const c=logs4(m,d).length
+        const col=c>=q?'#1D9E75':c>0?'#BA7517':'rgba(0,0,0,.15)'
+        return '<span class="sd" style="background:'+col+'" title="'+d+':'+c+'/'+q+'건"></span>'
+      }).join('')
+      h += '<div class="cuc"><div class="cun">'+m+(r2cnt>0?'<span class="t2nd">2차 '+r2cnt+'</span>':'')+'</div>'
+        + '<div class="cut">'+(code==='east'?'동부팀':'서부팀')+'</div>'
+        + '<div class="cus"><div class="cu"><div class="cuv">'+total+'</div><div class="cul">누적 TM</div></div>'
+        + '<div class="cu"><div class="cuv">'+ach+'/'+workDays+'</div><div class="cul">달성일수</div></div>'
+        + '<div class="cu"><div class="cuv">'+(workDays>0?Math.round(ach/workDays*100):0)+'%</div><div class="cul">달성률</div></div></div>'
+        + '<div class="sw">'+dots+'</div></div>'
+    })
+    h += '</div>'
+  })
+
+  document.getElementById('tab-cum').innerHTML=h
+}
+
+function setCumMonth(ym){
+  window.CUM_MONTH = ym
+  renderCum()
+}
+
+function setCumYear(y){
+  // 해당 연도의 첫 캠페인 월로 이동
+  const months = campaignMonths().filter(function(ym){ return ym.split('-')[0]===y })
+  if(months.length) window.CUM_MONTH = months[0]
+  renderCum()
+}
+
+// 해당 월(YYYY-MM)의 평일(근무일) 목록
+function workdaysOfMonth(ym){
+  const [y,m] = ym.split('-').map(Number)
+  const dim = new Date(y, m, 0).getDate()
+  const arr = []
+  for(let d=1; d<=dim; d++){
+    const ds = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+    if(isWorkday(ds)) arr.push(ds)
+  }
+  return arr
+}
+
+// 캠페인 시작월 (이 월 이전은 누적현황에서 제외)
+function campaignStartMonth(){
+  return mo(CAMPAIGN_START)  // 예: '2026-06'
+}
+
+// 캠페인 시작월부터 현재월까지의 YYYY-MM 배열 (과거→현재순)
+function campaignMonths(){
+  const start = campaignStartMonth()          // '2026-06'
+  const [sy,sm] = start.split('-').map(Number)
+  const now = new Date(CUR_DATE+'T00:00:00')
+  const ey = now.getFullYear(), em = now.getMonth()+1
+  const arr = []
+  let y=sy, m=sm
+  while(y<ey || (y===ey && m<=em)){
+    arr.push(y+'-'+String(m).padStart(2,'0'))
+    m++; if(m>12){ m=1; y++ }
+  }
+  return arr
+}
+
+// 캠페인 기간에 포함된 연도 목록
+function campaignYears(){
+  const months = campaignMonths()
+  const years = []
+  months.forEach(function(ym){
+    const y = ym.split('-')[0]
+    if(years.indexOf(y)<0) years.push(y)
+  })
+  return years
+}
+
+// 일자별 TM 막대 그래프 (동부/서부 스택 + 할당 목표선)
+function renderDailyChart(dates, ym){
+  if(!dates.length){
+    return '<div class="chart-wrap"><div class="chart-empty">'+parseInt(ym.split('-')[1])+'월에는 캠페인 근무일이 없습니다.</div></div>'
+  }
+  // 일자별 집계
+  const daily = dates.map(function(d){
+    let eastC=0, westC=0, totQ=0
+    EAST.forEach(function(m){ const q=mq(m,d); if(q>0){ eastC+=logs4(m,d).length; totQ+=q } })
+    WEST.forEach(function(m){ const q=mq(m,d); if(q>0){ westC+=logs4(m,d).length; totQ+=q } })
+    return { d, eastC, westC, tot:eastC+westC, totQ }
+  })
+  const maxVal = Math.max(1, ...daily.map(function(x){ return Math.max(x.tot, x.totQ) }))
+  const monTot = daily.reduce(function(s,x){ return s+x.tot }, 0)
+  const monQ = daily.reduce(function(s,x){ return s+x.totQ }, 0)
+  const days = ['일','월','화','수','목','금','토']
+
+  let bars = ''
+  daily.forEach(function(x){
+    const dt = new Date(x.d+'T00:00:00')
+    const dow = dt.getDay()
+    const dayNum = dt.getDate()
+    const eastH = Math.round(x.eastC / maxVal * 100)
+    const westH = Math.round(x.westC / maxVal * 100)
+    const lblCls = dow===0?' sun':dow===6?' sat':''
+    // 목표 대비 색상 강조: 달성 시 진하게
+    const segEast = x.eastC>0 ? '<div class="bar-seg" style="height:'+eastH+'%;background:#3B82C4" title="동부 '+x.eastC+'건"></div>' : ''
+    const segWest = x.westC>0 ? '<div class="bar-seg" style="height:'+westH+'%;background:#E8943A" title="서부 '+x.westC+'건"></div>' : ''
+    bars += '<div class="bar-col" title="'+x.d+' · TM '+x.tot+'건 / 목표 '+x.totQ+'건">'
+      + '<div class="bar-val">'+(x.tot>0?x.tot:'')+'</div>'
+      + '<div class="bar-stack">'+segEast+segWest+'</div>'
+      + '<div class="bar-lbl'+lblCls+'">'+dayNum+'</div>'
+      + '</div>'
+  })
+
+  const rate = monQ>0 ? Math.round(monTot/monQ*100) : 0
+  return '<div class="chart-wrap">'
+    + '<div class="chart-title">'
+    +   '<span>📊 '+parseInt(ym.split('-')[1])+'월 일자별 TM 실적</span>'
+    +   '<span class="chart-legend"><span><span class="lgd-box" style="background:#3B82C4"></span>동부팀</span>'
+    +     '<span><span class="lgd-box" style="background:#E8943A"></span>서부팀</span></span>'
+    + '</div>'
+    + '<div class="bars">'+bars+'</div>'
+    + '<div class="chart-summary">'
+    +   '<div><b>'+monTot+'</b><span class="lbl">월 누적 TM</span></div>'
+    +   '<div><b>'+monQ+'</b><span class="lbl">월 누적 목표</span></div>'
+    +   '<div><b>'+rate+'%</b><span class="lbl">월 달성률</span></div>'
+    +   '<div><b>'+dates.length+'</b><span class="lbl">근무일수</span></div>'
+    + '</div>'
+    + '</div>'
+}
+
+
+// ── 날짜 이동 ──
+function chgCalMo(team,dir){const[yr,mo2]=CAL_MONTH[team].split('-').map(Number);const nd=new Date(yr,mo2-1+dir,1);CAL_MONTH[team]=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;reRenderActive()}
+function selDate(ds,team){CUR_DATE=ds;CAL_MONTH[team]=mo(ds);reRenderActive()}
+function chgDate(dir,team){
+  // 날짜 문자열 직접 파싱 (타임존 안전)
+  const parts = CUR_DATE.split('-').map(Number)
+  const d = new Date(parts[0], parts[1]-1, parts[2])
+  d.setDate(d.getDate()+dir)
+  const y = d.getFullYear()
+  const m2 = String(d.getMonth()+1).padStart(2,'0')
+  const dd = String(d.getDate()).padStart(2,'0')
+  CUR_DATE = y+'-'+m2+'-'+dd
+  if(team && CAL_MONTH[team] !== undefined) CAL_MONTH[team] = mo(CUR_DATE)
+  // 모든 달력 월도 동기화
+  CAL_MONTH.all = mo(CUR_DATE)
+  reRenderActive()
+}
+
+// ── TM 기록 모달 ──
+let mMA=null,mTeam=null
+function openModal(ma,team){
+  mMA=ma;mTeam=team
+  const date=CUR_DATE,logs=logs4(ma,date),q=mq(ma,date)
+  const assigned=CACHE.db.filter(r=>r.assign1===ma||r.assign2===ma),isH=!isWorkday(date)
+  // 고객사명 datalist: 배정된 거래처 먼저, 그다음 나머지 TM대상 거래처
+  const assignedNames = assigned.map(r=>r.name)
+  const otherNames = CACHE.db.filter(r=>r.is_target!==false && assignedNames.indexOf(r.name)<0).map(r=>r.name)
+  const modalCompanyOpts = assignedNames.concat(otherNames)
+    .map(n=>`<option value="${(n||'').replace(/"/g,'&quot;')}">`).join('')
+  
+  const isCustom = q !== 1 && q !== 3 && q !== 0;
+
+  let h=`<div class="mot">${ma} — TM 기록</div>
+  <div class="mos">${fmtD(date)}${isH?` · <span style="color:${hName(date)==='캠페인 일정아님'?'var(--t2)':'var(--td)'}">${hName(date)||'주말/공휴일'}</span>`:''} · ${q===0?'휴무/부재':'할당량 '+q+'건'} · 현재 ${logs.length}건</div>
+  <div style="background:var(--bg2);border-radius:var(--r1);padding:9px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--t2)">오늘 내 할당량</span><div style="display:flex;gap:5px">
+    <button id="mq1" class="qtb ${q===1?'on':''}" onclick="setMQModal(1)">1건</button>
+    <button id="mq3" class="qtb ${q===3?'on':''}" onclick="setMQModal(3)">3건</button>
+    <button id="mqCustom" class="qtb ${isCustom?'on':''}" onclick="promptCustomMQModal()">${isCustom ? q+'건' : '입력'}</button>
+    <button id="mq0" class="qtb ${q===0?'on':''}" style="margin-left:4px;${q===0?'background:var(--bgd);color:var(--td);border-color:transparent':''}" onclick="setMQModal(0)">휴무</button>
+  </div></div>`
+  if(assigned.length>0){h+=`<div style="background:var(--bg2);border-radius:var(--r1);padding:9px 12px;margin-bottom:12px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">배정된 본사 (${assigned.length}건)</div><div style="display:flex;flex-wrap:wrap;gap:4px">${assigned.map(r=>`<span style="font-size:11px;padding:2px 7px;border-radius:99px;background:${r.assign2===ma?'var(--bgi)':'var(--bgs)'};color:${r.assign2===ma?'var(--ti)':'var(--ts)'}">${r.assign2===ma?'[2차] ':''}${r.name}(${r.branches})</span>`).join('')}</div></div>`}
+  h+=`<div class="fs"><div class="fst">기본 정보</div>
+    <div class="frow"><label class="flbl">고객사명 <span class="req">*필수</span> <span style="font-size:10px;color:var(--t2)">(배정된 거래처 우선)</span></label><input type="text" id="f-co" list="modal-company-list" autocomplete="off" placeholder="DB 거래처 선택"/><datalist id="modal-company-list">${modalCompanyOpts}</datalist></div>
+    <div class="fg"><div class="frow"><label class="flbl">현 거래업체</label><input type="text" id="f-cp" placeholder="예: KG이니시스 (선택)"/></div><div class="frow"><label class="flbl">수수료율</label><input type="text" id="f-fr" placeholder="예: 1.8% (선택)"/></div></div>
+    <div class="frow"><label class="flbl">대표자 연락처</label><input type="text" id="f-ct" placeholder="010-0000-0000 (선택)"/></div>
+    <div class="frow"><label class="flbl">통화 결과 <span class="req">*필수</span></label><select id="f-rs"><option value="">선택</option><option>응답</option><option>부재</option><option>거절</option><option>콜백요청</option></select></div>
+  </div>
+  <div class="fs"><div class="fst">상담 내용</div>
+    <div class="frow"><label class="flbl">상담 내역 <span class="req">*필수</span></label><textarea id="f-cd" placeholder="통화 내용을 상세히 기록해주세요..." style="height:80px"></textarea></div>
+    <div class="frow"><label class="flbl">상담 결과 <span class="req">*필수</span></label><select id="f-cr"><option value="">선택</option><option value="종결">종결</option><option value="추가상담">추가 상담진행</option></select></div>
+    <div class="frow"><label class="flbl">액션 플랜</label><input type="text" id="f-ac" placeholder="예: 다음주 재연락, 제안서 발송 등 (선택)"/></div>
+  </div>
+  <div id="el"></div>
+  <div class="fa"><button class="btn" onclick="closeModal()">취소</button><button class="btn p" onclick="saveLog()">저장</button></div>`
+  document.getElementById('moc').innerHTML=h
+  document.getElementById('mov').classList.add('open')
+  renderEL(logs)
+}
+
+function promptCustomMQModal() {
+  const val = prompt('할당할 TM 건수를 입력하세요 (1~999):', '4');
+  if(val === null) return;
+  const num = parseInt(val, 10);
+  if(isNaN(num) || num < 1 || num > 999) {
+    alert('1에서 999 사이의 숫자를 입력해주세요.');
+    return;
+  }
+  setMQModal(num);
+}
+
+async function setMQModal(v){
+  const date=CUR_DATE
+  const existing=CACHE.quotas.find(q=>q.ma_name===mMA&&q.quota_date===date)
+  if(existing){await sb.from('ma_quotas').update({quota:v}).eq('ma_name',mMA).eq('quota_date',date);existing.quota=v}
+  else{const{data}=await sb.from('ma_quotas').insert({ma_name:mMA,quota_date:date,quota:v}).select().single();if(data)CACHE.quotas.push(data)}
+  
+  document.getElementById('mq1').classList.toggle('on',v===1)
+  document.getElementById('mq3').classList.toggle('on',v===3)
+  const btnC = document.getElementById('mqCustom')
+  if(btnC) {
+    btnC.classList.toggle('on', v !== 1 && v !== 3 && v !== 0)
+    btnC.textContent = (v !== 1 && v !== 3 && v !== 0) ? v+'건' : '입력'
+  }
+  const btn0 = document.getElementById('mq0')
+  if(btn0) {
+    btn0.classList.toggle('on', v===0)
+    btn0.style.background = v===0 ? 'var(--bgd)' : 'transparent'
+    btn0.style.color = v===0 ? 'var(--td)' : 'var(--t2)'
+  }
+  
+  document.querySelector('.mos').textContent=`${fmtD(date)} · ${v===0?'휴무/부재':'할당량 '+v+'건'} · 현재 ${logs4(mMA,date).length}건`
+  reRenderActive()
+}
+
+function renderEL(logs){
+  const el=document.getElementById('el');if(!el)return
+  if(!logs.length){el.innerHTML='';return}
+  let h=`<div style="border-top:0.5px solid var(--b3);margin:.75rem 0;padding-top:.75rem"><div style="font-size:12px;color:var(--t2);margin-bottom:8px">기록된 TM (${logs.length}건)</div>`
+  logs.forEach(function(l,i){
+    const crCls=l.consult_result==='종결'?'종결':'추가상담'
+    const callBadge = l.call_result ? '<span class="pill '+l.call_result+'">'+l.call_result+'</span>' : ''
+    const crBadge = l.consult_result ? '<span class="pill '+crCls+'">'+(l.consult_result==='추가상담'?'추가상담':l.consult_result)+'</span>' : ''
+    const consultDiv = l.consult_detail ? '<div class="lcons">'+l.consult_detail+'</div>' : ''
+    const actionDiv = l.action_plan ? '<div class="lap">→ '+l.action_plan+'</div>' : ''
+    h+='<div class="lc '+crCls+'">'
+      +'<div class="lh"><span class="lco">'+(l.company||'—')+'</span>'
+      +'<div class="lb">'+callBadge+' '+crBadge
+      +'<button class="del" onclick="delLog(&apos;'+l.id+'&apos;)">✕</button></div></div>'
+      +'<div class="lmg">'
+      +'<div class="lmi">거래업체 <strong>'+(l.current_partner||'—')+'</strong></div>'
+      +'<div class="lmi">수수료율 <strong>'+(l.fee_rate||'—')+'</strong></div>'
+      +'<div class="lmi">대표연락처 <strong>'+(l.ceo_contact||'—')+'</strong></div>'
+      +'</div>'+consultDiv+actionDiv+'</div>'
+  })
+  h+=`</div>`;el.innerHTML=h
+}
+
+async function delLog(id){
+  await sb.from('tm_logs').delete().eq('id',id)
+  CACHE.logs=CACHE.logs.filter(l=>l.id!==id)
+  renderEL(logs4(mMA,CUR_DATE))
+  reRenderActive()
+}
+
+async function saveLog(){
+  const co=document.getElementById('f-co').value.trim(),cp=document.getElementById('f-cp').value.trim(),fr=document.getElementById('f-fr').value.trim(),ct=document.getElementById('f-ct').value.trim(),rs=document.getElementById('f-rs').value,cd=document.getElementById('f-cd').value.trim(),cr=document.getElementById('f-cr').value
+  if(!co||!rs||!cd||!cr){alert('고객사명, 통화결과, 상담내역, 상담결과는 필수입니다.');return}
+  const _dbMatch=CACHE.db.find(r=>r.is_target!==false&&r.name===co)
+  if(!_dbMatch){alert('"'+co+'"은(는) DB에 등록된 TM 대상 거래처가 아닙니다.\n고객사명을 목록에서 선택해주세요.');return}
+  const rec={log_date:CUR_DATE,ma_name:mMA,team:EAST.includes(mMA)?'east':'west',company:co,current_partner:cp,fee_rate:fr,ceo_contact:ct,call_result:rs,consult_detail:cd,consult_result:cr,action_plan:document.getElementById('f-ac').value.trim()}
+  const{data,error}=await sb.from('tm_logs').insert(rec).select().single()
+  if(error){alert('저장 실패: '+error.message);return}
+  CACHE.logs.unshift(data)
+  ;['f-co','f-cp','f-fr','f-ct','f-ac','f-cd'].forEach(id=>document.getElementById(id).value='')
+  document.getElementById('f-rs').value='';document.getElementById('f-cr').value=''
+  renderEL(logs4(mMA,CUR_DATE));reRenderActive()
+}
+function closeModal(){document.getElementById('mov').classList.remove('open')}
+function closeModalBg(e){if(e.target===document.getElementById('mov'))closeModal()}
+
+// ── 인력관리 탭 ──
+function renderStaff(){
+  const allMA = ALL_MA
+  let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+    <span class="stl" style="margin-bottom:0">인력 관리</span>
+    <div style="font-size:12px;color:var(--t2)">상태 변경 후 저장되며, TM 기록은 모두 보존됩니다</div>
+  </div>`
+
+  // 상태별 요약
+  const active = allMA.filter(({m})=>getMaStatus(m)==='active').length
+  const transferred = allMA.filter(({m})=>getMaStatus(m)==='transferred').length
+  const resigned = allMA.filter(({m})=>getMaStatus(m)==='resigned').length
+  h+=`<div class="sr" style="margin-bottom:1.25rem">
+    <div class="sc"><div class="sl">재직중</div><div class="sv" style="color:#1D9E75">${active}명</div></div>
+    <div class="sc"><div class="sl">부서이동</div><div class="sv" style="color:#BA7517">${transferred}명</div></div>
+    <div class="sc"><div class="sl">퇴직</div><div class="sv" style="color:#A32D2D">${resigned}명</div></div>
+  </div>`
+
+  // 팀별 테이블
+  ;['east','west'].forEach(team=>{
+    const members = teamMembers(team)
+    h+=`<div class="pn" style="margin-bottom:1rem">
+    <div class="pnt"><i class="ti ti-users" style="font-size:15px"></i>${team==='east'?'동부팀':'서부팀'}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:80px">이름</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:90px">상태</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:110px">이동/퇴직일</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500">비고</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:100px">인수인계</th>
+      <th style="text-align:left;padding:7px 8px;border-bottom:0.5px solid var(--b2);color:var(--t2);font-weight:500;width:70px">저장</th>
+    </tr></thead><tbody>`
+
+    members.forEach(m=>{
+      const st = MA_STATUS[m] || {status:'active',date:'',note:''}
+      const stColor = st.status==='active'?'#1D9E75':st.status==='transferred'?'#BA7517':'#A32D2D'
+      const stLabel = st.status==='active'?'재직중':st.status==='transferred'?'부서이동':'퇴직'
+      const followUpCount = CACHE.logs.filter(l=>l.ma_name===m&&l.consult_result==='추가상담').length
+      const dbCount = CACHE.db.filter(r=>r.assign1===m||r.assign2===m).length
+
+      h+=`<tr style="border-bottom:0.5px solid var(--b3)">
+        <td style="padding:8px"><span style="font-weight:500">${m}</span>
+          ${st.status!=='active'?`<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:${st.status==='transferred'?'var(--bgw)':'var(--bgd)'};color:${stColor};margin-left:4px">${stLabel}</span>`:''}
+        </td>
+        <td style="padding:8px">
+          <select id="st-status-${m}" style="font-size:12px;padding:3px 6px" onchange="onStaffStatusChange('${m}')">
+            <option value="active" ${st.status==='active'?'selected':''}>재직중</option>
+            <option value="transferred" ${st.status==='transferred'?'selected':''}>부서이동</option>
+            <option value="resigned" ${st.status==='resigned'?'selected':''}>퇴직</option>
+          </select>
+        </td>
+        <td style="padding:8px"><input type="date" id="st-date-${m}" value="${st.date||''}" style="font-size:12px;padding:3px 6px;max-width:130px"></td>
+        <td style="padding:8px"><input type="text" id="st-note-${m}" value="${st.note||''}" placeholder="예: 영업2팀 이동" style="font-size:12px;padding:3px 6px;width:100%"></td>
+        <td style="padding:8px">
+          ${st.status!=='active'&&followUpCount>0?
+            `<button class="btn s" onclick="openHandover('${m}','${team}')" style="font-size:11px;color:var(--ti);border-color:#B5D4F4;white-space:nowrap">
+              추가상담 ${followUpCount}건 인계
+            </button>`:
+            '<span style="font-size:11px;color:var(--t2)">추가상담 '+followUpCount+'건'+(dbCount>0?' / DB '+dbCount+'건':'')+' </span>'
+          }
+        </td>
+        <td style="padding:8px">
+          <button class="btn s p" onclick="saveStaffStatus('${m}')" style="font-size:11px">저장</button>
+        </td>
+      </tr>`
+    })
+    h+=`</tbody></table></div>`
+  })
+
+  if(isAdmin()){
+    const allMembers = [
+      ...ADMIN_NAMES.map(n=>({name:n,role:'admin',team:null})),
+      ...EAST.map(n=>({name:n,role:'ma',team:'east'})),
+      ...WEST.map(n=>({name:n,role:'ma',team:'west'}))
+    ]
+    h+=`<div class="pn">
+    <div class="pnt"><i class="ti ti-users-plus" style="font-size:15px"></i>직원 추가 / PIN 설정 <span style="font-size:11px;color:var(--t2);font-weight:400;margin-left:4px">관리자 전용</span></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:1rem">신규 직원의 이름·팀을 입력하세요. 달력/현황에 반영하려면 코드의 EAST/WEST 배열에 이름 추가가 필요합니다. (관리자 PIN은 공통 사용)</div>
+
+    <div style="background:var(--bg2);border-radius:var(--r1);padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:500;color:var(--t1);margin-bottom:10px">신규 직원 추가</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">이름</label>
+          <input type="text" id="new-ma-name" placeholder="홍길동" style="width:100%;font-size:13px;padding:6px 8px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:3px">팀</label>
+          <select id="new-ma-team" style="width:100%;font-size:13px;padding:6px 8px">
+            <option value="east">동부팀</option>
+            <option value="west">서부팀</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:end">
+          <button class="btn p" onclick="addNewMember()" style="white-space:nowrap;padding:8px 14px;width:100%">추가</button>
+        </div>
+      </div>
+      <div id="new-ma-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
+    </div>
+
+    <div style="background:var(--bgs);border-radius:var(--r1);padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:500;color:var(--ts);margin-bottom:8px">📅 캠페인 시작일 설정</div>
+      <div style="font-size:12px;color:var(--t1);line-height:1.7;margin-bottom:10px">
+        설정한 날짜 <strong>이하(포함)</strong>의 모든 평일이 <strong>"캠페인 일정아님"</strong>으로 표시되고 달성률 집계에서 제외됩니다.<br>
+        <span style="color:var(--t2)">예: 6월 5일로 설정 → 6/5까지 캠페인 외 처리, 6/8(월)부터 집계 시작</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="campaign-start-input" style="font-size:13px;padding:7px 10px">
+        <button class="btn p" onclick="applyCampaignStart()" style="padding:7px 16px">적용</button>
+        <span id="campaign-msg" style="font-size:12px;color:var(--ts)"></span>
+      </div>
+      <div style="border-top:0.5px solid var(--b3);margin-top:12px;padding-top:12px">
+        <div style="font-size:12px;font-weight:500;color:var(--ts);margin-bottom:6px">🗓 개별 휴무일 지정 (전사 공통)</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:8px">
+          캠페인 기간 중 특정 날짜를 <strong>전체 휴무일</strong>로 지정합니다. (워크숍·창립기념일 등)<br>
+          지정한 날은 평일이어도 달성률 집계에서 제외됩니다.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <input type="date" id="custom-off-input" style="font-size:13px;padding:7px 10px">
+          <button class="btn p" onclick="addCustomOffDay()" style="padding:7px 16px">휴무일 추가</button>
+        </div>
+        <div id="custom-off-list"></div>
+      </div>
+    </div>
+    <div style="background:var(--bgi);border-radius:var(--r1);padding:12px 14px">
+      <div style="font-size:13px;font-weight:500;color:var(--ti);margin-bottom:6px">🔑 관리자 PIN 변경 방법</div>
+      <div style="font-size:12px;color:var(--t1);line-height:1.8">
+        1. GitHub에서 <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">index.html</code> 파일 열기<br>
+        2. 파일 상단에서 아래 코드 찾기<br>
+        <code style="background:var(--bg2);padding:4px 8px;border-radius:4px;display:block;margin:6px 0;font-size:12px">const ADMIN_PIN = '2580'</code>
+        3. <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">2580</code> 부분을 원하는 PIN으로 변경 후 저장
+      </div>
+    </div>
+    </div>`
+  }
+
+  document.getElementById('tab-staff').innerHTML=h
+  // 캠페인 시작일 input 현재값 표시
+  const csInput = document.getElementById('campaign-start-input')
+  if(csInput) csInput.value = CAMPAIGN_START
+  // 개별 휴무일 목록 표시
+  renderCustomOffList()
+}
+
+function onStaffStatusChange(ma){
+  // UI 힌트용
+}
+
+function saveStaffStatus(ma){
+  const status = document.getElementById(`st-status-${ma}`)?.value || 'active'
+  const date   = document.getElementById(`st-date-${ma}`)?.value || ''
+  const note   = document.getElementById(`st-note-${ma}`)?.value || ''
+  MA_STATUS[ma] = { status, date, note }
+  saveMaStatus()
+  renderStaff()
+  if(status !== 'active'){
+    const dbAssigned = CACHE.db.filter(r=>r.assign1===ma||r.assign2===ma)
+    if(dbAssigned.length>0){
+      const msg = `${ma}님은 배정된 본사 DB가 ${dbAssigned.length}건 있습니다.
+[DB관리] 탭에서 담당자를 변경해 주세요.`
+      alert(msg)
+    }
+  }
+}
+
+function openHandover(fromMA, team){
+  const followUps = CACHE.logs.filter(l=>l.ma_name===fromMA&&l.consult_result==='추가상담')
+  const dbAssigned = CACHE.db.filter(r=>r.assign1===fromMA||r.assign2===fromMA)
+  const activeMembers = teamMembers(team).filter(m=>m!==fromMA&&isActiveMa(m))
+
+  let h=`<div class="mot">인수인계 — ${fromMA}</div>
+  <div class="mos" style="margin-bottom:1rem">추가 상담진행 ${followUps.length}건 · 배정 DB ${dbAssigned.length}건</div>
+
+  <div style="background:var(--bgi);border-radius:var(--r1);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ti)">
+    📋 TM 기록은 삭제되지 않고 <strong>${fromMA}</strong> 이름으로 영구 보존됩니다.<br>
+    인수인계는 <strong>배정 DB 담당자 변경</strong>과 <strong>추가상담 메모 이전</strong>만 진행합니다.
+  </div>
+
+  <div class="fs"><div class="fst">인수 담당자 선택</div>
+  <div class="frow"><label class="flbl">인계받을 MA <span class="req">*</span></label>
+    <select id="hv-to" style="width:100%">
+      <option value="">선택하세요</option>
+      ${activeMembers.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      ${[...EAST,...WEST].filter(m=>m!==fromMA&&isActiveMa(m)&&!activeMembers.includes(m)).map(m=>`<option value="${m}">${m} (타팀)</option>`).join('')}
+    </select>
+  </div></div>
+
+  <div class="fs"><div class="fst">추가 상담진행 건 (${followUps.length}건)</div>`
+
+  if(followUps.length>0){
+    followUps.slice(0,10).forEach(l=>{
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--b3)">
+        <input type="checkbox" id="hv-log-${l.id}" checked style="width:14px;height:14px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${l.company}</div>
+          <div style="font-size:11px;color:var(--t2)">${l.log_date} · ${l.consult_detail?.slice(0,40)||''}${(l.consult_detail?.length||0)>40?'...':''}</div>
+        </div>
+      </div>`
+    })
+    if(followUps.length>10) h+=`<div style="font-size:11px;color:var(--t2);padding:4px 0">+${followUps.length-10}건 더...</div>`
+  } else {
+    h+=`<div style="font-size:12px;color:var(--t2)">추가 상담진행 건이 없습니다.</div>`
+  }
+  h+=`</div>`
+
+  if(dbAssigned.length>0){
+    h+=`<div class="fs"><div class="fst">배정 DB (${dbAssigned.length}건) — 담당자도 함께 변경</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <input type="checkbox" id="hv-db-all" checked style="width:14px;height:14px">
+      <label for="hv-db-all" style="font-size:12px;color:var(--t2)">전체 DB 담당자 변경</label>
+    </div>`
+    dbAssigned.slice(0,5).forEach(r=>{
+      h+=`<div style="font-size:12px;color:var(--t2);padding:2px 0">${r.name} (${r.branches}개점) · ${r.assign1===fromMA?'1차':'2차'} 담당</div>`
+    })
+    if(dbAssigned.length>5) h+=`<div style="font-size:11px;color:var(--t2)">+${dbAssigned.length-5}건 더</div>`
+    h+=`</div>`
+  }
+
+  h+=`<div class="fa">
+    <button class="btn" onclick="closeModal()">취소</button>
+    <button class="btn p" onclick="execHandover('${fromMA}','${team}')">인수인계 실행</button>
+  </div>`
+
+  document.getElementById('moc').innerHTML=h
+  document.getElementById('mov').classList.add('open')
+}
+
+async function execHandover(fromMA, team){
+  const toMA = document.getElementById('hv-to')?.value
+  if(!toMA){ alert('인계받을 MA를 선택해주세요.'); return }
+  if(!confirm(`${fromMA} → ${toMA} 인수인계를 진행하시겠습니까?`)) return
+
+  let done=0, errors=[]
+
+  const doDbChange = document.getElementById('hv-db-all')?.checked
+  if(doDbChange){
+    const dbAssigned = CACHE.db.filter(r=>r.assign1===fromMA||r.assign2===fromMA)
+    for(const r of dbAssigned){
+      try{
+        if(r.assign1===fromMA){
+          await sb.from('company_db').update({assign1:toMA}).eq('id',r.id)
+          r.assign1=toMA
+        }
+        if(r.assign2===fromMA){
+          await sb.from('company_db').update({assign2:toMA}).eq('id',r.id)
+          r.assign2=toMA
+        }
+        done++
+      }catch(e){ errors.push(r.name) }
+    }
+  }
+
+  closeModal()
+  alert('인수인계 완료!\nDB 담당자 변경: '+done+'건'+(errors.length>0?'\n실패: '+errors.join(', '):''))
+  renderStaff()
+  renderAll()
+}
+
+// ── 실시간 구독 (다른 사람이 저장하면 자동 반영) ──
+function setupRealtime(){
+  sb.channel('tm-realtime')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'tm_logs'},payload=>{
+      if(!CACHE.logs.find(l=>l.id===payload.new.id))CACHE.logs.unshift(payload.new)
+      setSyncBadge('ok','✓ 실시간 동기화')
+      reRenderActive()
+    })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'tm_logs'},payload=>{
+      CACHE.logs=CACHE.logs.filter(l=>l.id!==payload.old.id)
+      reRenderActive()
+    })
+    .subscribe()
+}
+
+// 페이지 로드 완료 후 Supabase 초기화 및 데이터 로드
+document.addEventListener("DOMContentLoaded", function(){
+  loadMaStatus()
+  // 저장된 내 이름 복원
+  try{ window.MY_MA_NAME = localStorage.getItem('my_ma_name') || '' }catch(e){ window.MY_MA_NAME='' }
+  if(window.MY_MA_NAME) window.LAST_QUICK_MA = window.MY_MA_NAME
+  function initSb(){
+    if(typeof supabase !== 'undefined'){
+      const { createClient } = supabase
+      sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+      loadAll().then(setupRealtime)  
+    } else {
+      setTimeout(initSb, 50)
+    }
+  }
+  initSb()
+})
+</script>
+</body>
+</html>
