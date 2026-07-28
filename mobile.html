@@ -187,15 +187,7 @@ body{font-family:var(--font);background:var(--bg3);color:var(--t1);min-height:10
   <div class="name-area">
     <label>내 이름</label>
     <select class="name-select" id="m-ma" onchange="onNameChange()">
-      <option value="">선택</option>
-      <optgroup label="동부팀">
-        <option>백현석</option><option>심재천</option><option>이동성</option><option>정승상</option>
-        <option>박재환</option><option>손혜령</option><option>권성은</option><option>김다진</option>
-      </optgroup>
-      <optgroup label="서부팀">
-        <option>임현묵</option><option>최용</option><option>조인호</option><option>박민국</option>
-        <option>강탄</option><option>우수민</option><option>조용준</option><option>장길평</option><option>박찬혜</option>
-      </optgroup>
+      <option value="">조직 로딩 중…</option>
     </select>
   </div>
 </div>
@@ -210,7 +202,13 @@ body{font-family:var(--font);background:var(--bg3);color:var(--t1);min-height:10
 <div class="card" id="assigned-card" style="display:none">
   <div class="card-title" id="assigned-title">오늘 할당 TM처</div>
   <div id="assigned-chips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-  <div style="font-size:12px;color:var(--t2);margin-top:8px">버튼을 누르면 고객사명이 자동 입력됩니다.</div>
+  <div style="font-size:12px;color:var(--t2);margin-top:8px">버튼을 누르면 고객사명이 자동 입력됩니다. <span style="color:#92400E">이력</span> 배지를 누르면 과거 상담내역을 볼 수 있습니다.</div>
+</div>
+
+<div class="card" id="followup-card" style="display:none">
+  <div class="card-title" id="followup-title">팔로우업 필요</div>
+  <div id="followup-chips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  <div style="font-size:12px;color:var(--t2);margin-top:8px">보류·추가상담 건은 기록일 +5일 내 재통화가 필요합니다.</div>
 </div>
 
 <!-- 입력 폼 -->
@@ -300,8 +298,8 @@ const SUPABASE_URL = 'https://zndbcmzquoaavsfojhhz.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZGJjbXpxdW9hYXZzZm9qaGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNTE5MzYsImV4cCI6MjA5NTkyNzkzNn0.5lI7H6QR5e-fJGBgQQu4Zwk4G_l3EZ4Dc8wM1cvokGs'
 // ════════════════════════════════════════════
 
-const EAST = ['백현석','심재천','이동성','정승상','박재환','손혜령','권성은','김다진']
-const WEST = ['임현묵','최용','조인호','박민국','강탄','우수민','조용준','장길평','박찬혜']
+// 조직 명단은 하드코딩하지 않음. loadOrgM()이 Supabase app_config('app_snapshot')에서 로드.
+const EAST = [], WEST = []
 
 let sb = null
 
@@ -425,12 +423,12 @@ function allTeamsM(){
 function maTeamM(ma){
   const t = allTeamsM().find(function(t){ return t.members.indexOf(ma)>=0 })
   if(t) return t.id
-  // 폴백: 초기 EAST/WEST 배열
-  return EAST.indexOf(ma)>=0 ? 'east' : 'west'
+  // 조직에 없으면 팀 미판정 (표시는 '—')
+  return null
 }
 function teamNameM(tid){
   const t = allTeamsM().find(function(t){ return t.id===tid })
-  return t ? t.name : (tid==='east' ? '동부팀' : tid==='west' ? '서부팀' : (tid||''))
+  return t ? t.name : (tid || '')
 }
 function maDivisionM(ma){
   const tid = maTeamM(ma)
@@ -579,7 +577,7 @@ function updateHeader(){
 
 async function loadMyLogs(){
   const ma = document.getElementById('m-ma').value
-  if(!ma){ myLogs=[]; MY_LOGS_ALL=[]; renderLogs(); renderAssignedToday(); return }
+  if(!ma){ myLogs=[]; MY_LOGS_ALL=[]; renderLogs(); renderAssignedToday(); renderFollowupsM(); return }
   try{
     // 오늘 로그
     const { data } = await sb.from('tm_logs')
@@ -596,6 +594,7 @@ async function loadMyLogs(){
     renderLogs()
     updateCnt()
     renderAssignedToday()
+    renderFollowupsM()
   }catch(e){ showToast('로드 실패: '+e.message, true) }
 }
 
@@ -655,6 +654,7 @@ async function delLog(id){
     myLogs = myLogs.filter(function(l){ return l.id !== id })
     renderLogs()
     updateCnt()
+    renderFollowupsM()
     showToast('삭제되었습니다')
   }catch(e){ showToast('삭제 실패: '+e.message, true) }
 }
@@ -722,6 +722,7 @@ async function submitLog(){
     renderLogs()
     updateCnt()
     renderAssignedToday()  // 완료 표시 즉시 반영
+    renderFollowupsM()
     // 이름 유지, 나머지 초기화
     ;['m-co','m-cp','m-fr','m-ct','m-ac','m-cd'].forEach(function(id){
       document.getElementById(id).value = ''
@@ -763,6 +764,74 @@ function buildCompanyDatalist(){
 }
 
 // 오늘 할당 TM처 카드 렌더 (이월 포함)
+// ── 고객사 상담이력 조회 (참고용) ──
+// 특정 고객사의 과거 TM 기록을 서버에서 즉시 조회해 모달로 표시. RLS 범위 내에서만 반환됨.
+async function showCompanyHistory(company){
+  if(!company) return
+  let rows = []
+  try{
+    const { data } = await sb.from('tm_logs').select('*').eq('company', company).order('log_date',{ascending:true}).limit(50)
+    rows = data || []
+  }catch(e){ showToast('이력 조회 실패', true); return }
+  const ov = document.createElement('div')
+  ov.id = 'hist-ov'
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:flex-end'
+  ov.onclick = function(e){ if(e.target===ov) ov.remove() }
+  let inner = '<div style="background:#fff;width:100%;max-height:80vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    + '<div style="font-size:16px;font-weight:700">'+escHtml(company)+' 상담이력 ('+rows.length+')</div>'
+    + '<button onclick="document.getElementById(\'hist-ov\').remove()" style="font-size:20px;background:none;border:0;color:#888">✕</button></div>'
+  if(!rows.length){
+    inner += '<div style="font-size:13px;color:#888;padding:12px 0">조회 가능한 이력이 없습니다.</div>'
+  } else {
+    rows.forEach(function(r, i){
+      inner += '<div style="border:1px solid #eee;border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+        + '<div style="font-size:12px;color:#666;margin-bottom:3px"><b>'+(i+1)+'차</b> · '+(r.log_date||'')+' · '+escHtml(r.ma_name||'')
+        + (r.call_result?' · '+escHtml(r.call_result):'')+(r.consult_result?' · '+escHtml(r.consult_result):'')+'</div>'
+        + (r.consult_detail?'<div style="font-size:13px;line-height:1.5;white-space:pre-wrap">'+escHtml(r.consult_detail)+'</div>':'')
+        + (r.action_plan?'<div style="font-size:12px;color:#1a56b0;margin-top:3px">→ '+escHtml(r.action_plan)+'</div>':'')
+        + '</div>'
+    })
+  }
+  inner += '</div>'
+  ov.innerHTML = inner
+  document.body.appendChild(ov)
+}
+// ── 팔로우업(+5일): 내 보류·추가상담 건 중 후속 없는 것 ──
+const FU_DAYS_M = 5
+function _fuDueM(d){ const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+FU_DAYS_M); return ymd(dt) }
+function renderFollowupsM(){
+  const box = document.getElementById('followup-card')
+  const chips = document.getElementById('followup-chips')
+  const title = document.getElementById('followup-title')
+  if(!box || !chips) return
+  const byCo = {}
+  myLogs.forEach(function(l){ if(l.company){ (byCo[l.company]||(byCo[l.company]=[])).push(l) } })
+  const open = []
+  myLogs.forEach(function(r){
+    if(r.consult_result!=='보류' && r.consult_result!=='추가상담') return
+    const due = _fuDueM(r.log_date)
+    const later = (byCo[r.company]||[]).some(function(l){
+      return String(l.id)!==String(r.id) && (l.log_date>r.log_date || (l.log_date===r.log_date && (l.created_at||'')>(r.created_at||'')))
+    })
+    if(later) return
+    const diff = Math.round((new Date(due+'T00:00:00')-new Date(CUR_DATE+'T00:00:00'))/86400000)
+    open.push({ name:r.company, due:due, over:diff<0?-diff:0, dleft:diff>=0?diff:0 })
+  })
+  if(!open.length){ box.style.display='none'; return }
+  open.sort(function(a,b){ return a.due.localeCompare(b.due) })
+  box.style.display='block'
+  const overN = open.filter(function(x){return x.over>0}).length
+  title.innerHTML = '팔로우업 필요 <span style="font-size:12px;font-weight:400;color:var(--t2)">('+open.length+'건'+(overN?' · 지연 '+overN:'')+')</span>'
+  chips.innerHTML = open.map(function(x){
+    const over = x.over>0
+    const bg = over?'var(--bgd,#fdecea)':'var(--bgi,#e8f0fe)', col = over?'var(--td,#c0392b)':'var(--ti,#1a56b0)'
+    const lbl = over?'지연 +'+x.over+'일':'D-'+x.dleft
+    return '<button onclick="pickCompany(\''+x.name.replace(/'/g,"\\'")+'\')" style="font-size:14px;padding:9px 14px;border-radius:99px;border:1px solid '+col+';background:'+bg+';color:'+col+';cursor:pointer">'
+      + escHtml(x.name)+' <b>'+lbl+'</b></button>'
+  }).join('')
+}
+
 function renderAssignedToday(){
   const ma = document.getElementById('m-ma')?.value
   const card = document.getElementById('assigned-card')
@@ -787,9 +856,12 @@ function renderAssignedToday(){
     const col = done ? 'var(--ts,#1d7a3f)' : isCarry ? 'var(--tw,#9a6a00)' : 'var(--ti,#1a56b0)'
     const mark = done ? ' ✓' : isCarry ? ' ↩' : ''
     const stl = done ? 'text-decoration:line-through;opacity:.65;' : ''
+    // 상담이력 배지 (내 기록 기준 건수 — 탭하면 서버에서 전체 이력 조회)
+    const hcnt = myLogs.filter(function(l){ return l.company===r.name }).length
+    const hbadge = '<span onclick="event.stopPropagation();showCompanyHistory(\''+r.name.replace(/'/g,"\\'")+'\')" style="font-size:11px;font-weight:700;padding:1px 7px;margin-left:4px;border-radius:99px;background:#FEF3C7;color:#92400E">이력'+(hcnt||'')+'</span>'
     return '<button onclick="pickCompany(\''+r.name.replace(/'/g,"\\'")+'\')" '
       + 'style="font-size:14px;padding:9px 14px;border-radius:99px;border:1px solid '+col+';background:'+bg+';color:'+col+';cursor:pointer;'+stl+'">'
-      + r.name + mark + '</button>'
+      + r.name + mark + hbadge + '</button>'
   }).join('')
 }
 
