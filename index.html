@@ -3026,6 +3026,50 @@ function exportExcel(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`TM내역_${td()}.xls`;a.click()
 }
 
+// ── DB 전체 엑셀 추출 (관리자 전용) ──
+// 현재 업로드된 company_db 전체를 엑셀로 다운로드. 재업로드 양식과 호환되는 컬럼 구성.
+function exportDbExcel(){
+  if(!isRealAdmin()){ alert('DB 전체 추출은 관리자만 가능합니다.'); return }
+  const rows = CACHE.db
+  if(!rows.length){ alert('추출할 DB가 없습니다.'); return }
+  const hdr = ['상호','영업표지','업종','가맹점수(업로딩)','권역(사업부)','권역(팀)','차수','차수승인','제외여부','1차담당','2차담당','TM이력','등록경로']
+  const esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+  const body = rows.map(function(r){
+    const ph = calcPhase(r.branches||0)
+    const vals = [
+      r.brand_name || '',
+      r.name || '',
+      r.industry || '',
+      r.branches || 0,
+      r.division || '',
+      teamName(r.region) || r.region || '',
+      ph + '차',
+      r.phase_approved ? 'Y' : '',
+      r.is_target === false ? 'Y' : '',          // 제외여부 (업로드 양식과 동일 해석: Y=제외)
+      r.assign1 || '',
+      r.assign2 || '',
+      r.has_tm_history ? 'Y' : '',
+      r.source || ''
+    ]
+    return '<Row>' + vals.map(function(v){
+      const isNum = typeof v === 'number'
+      return '<Cell><Data ss:Type="' + (isNum?'Number':'String') + '">' + esc(v) + '</Data></Cell>'
+    }).join('') + '</Row>'
+  }).join('')
+  const xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
+    + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+    + '<Styles><Style ss:ID="H"><Font ss:Bold="1"/><Interior ss:Color="#E6F1FB" ss:Pattern="Solid"/></Style></Styles>'
+    + '<Worksheet ss:Name="DB전체"><Table>'
+    + '<Row>' + hdr.map(function(h){ return '<Cell ss:StyleID="H"><Data ss:Type="String">'+h+'</Data></Cell>' }).join('') + '</Row>'
+    + body
+    + '</Table></Worksheet></Workbook>'
+  const blob = new Blob([xml], { type:'application/vnd.ms-excel;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'DB전체_' + td() + '_' + rows.length + '건.xls'
+  a.click()
+}
+
 // ── DB 탭 렌더링 ──
 function renderDBTab() {
   document.getElementById('tab-db').innerHTML = dbPanelHtml()
@@ -3114,6 +3158,7 @@ function dbPanelHtml(){
     + '<button class="btn s" onclick="recalcPhases()" title="가맹점수 기준으로 1·2·3차 다시 분류">차수 재계산</button>'
     + '<button class="btn s" onclick="exportExcluded()" title="제외(N) 처리된 거래처 목록 다운로드" style="color:var(--td);border-color:var(--td)">제외목록 추출</button>'
     + '<button class="btn s" onclick="recoverMissingCompanies()" title="TM 내역에는 있으나 DB에 없는 거래처를 복구" style="color:var(--ti);border-color:var(--ti)">누락거래처 복구</button>'
+    + (isRealAdmin() ? '<button class="btn s" onclick="exportDbExcel()" title="현재 업로드된 DB 전체를 엑셀로 다운로드 (관리자 전용)" style="color:#1D9E75;border-color:#1D9E75"><i class="ti ti-file-spreadsheet" style="font-size:13px"></i> DB 전체 추출</button>' : '')
     + '<button class="btn s dng" onclick="resetDB()">초기화</button>'
     + '</div></div>'
 
